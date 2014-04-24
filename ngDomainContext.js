@@ -4,7 +4,6 @@
  * Configurable methods:
  *     - restrictToSingleInstance
  *     - setEndpointUri
- *
  */
 angular.module('ngDomainContext', []).provider('domainContext', function() {
 

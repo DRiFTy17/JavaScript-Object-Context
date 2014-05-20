@@ -3,8 +3,11 @@ Angular Change Tracker
 
 A change tracking module for AngularJS.
 
-The idea behind this is to load an object (or objects) into the "context" of the application, and have it watch for changes to its properties. This module is useful for .NET developers that are used to the workflow of a client-side domain context through RIA services.
+This module can be used as a standalone container to track client-side javascript objects/arrays for changes.
 
-The next phase of this project is to build backend handlers to allow a single submit changes call to be sent, and save all loaded objects to the database. In its current state however, the module can be used to detect changes to any objects on the client-side, and view which properties changed, along with the current changeset.
+A working demo that uses the module can be found in [this plunker](http://plnkr.co/edit/YjvD9gb5iUvVVZC41g6s).
 
+### Todo List:
+* Finish implementing hooks for fetching and submitting loaded objects from/to the server.
+* Add experimental support for Object.observe().
 

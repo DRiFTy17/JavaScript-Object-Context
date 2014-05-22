@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Angular Change Tracker Demo</title>
+        <link rel="stylesheet" href="css/styles.css" />
+    </head>
+
+    <body ng-app="demoApp" ng-controller="demoCtrl">
+        <div>
+            <div><b>Has Changes:</b> {{hasChanges}}</div>
+            <div><b>Object Status:</b> {{getObjectStatus()}}</div>
+            <div><b>Objects in context:</b> {{contextObjectCount}}</div>
+        </div>
+
+        <br/>
+
+        <div style="padding: 10px; background: #eeeeee; border: 1px solid #aaaaaa;">
+            <div ng-repeat="object in getObjects()">
+                <div ng-click="setPerson(object)">{{object.id}} {{object.name}} {{object.age}}</div>
+            </div>
+        </div>
+
+        <br/>
+
+        <div>
+            <label>Name: (primitive)</label>
+            <input type="text" ng-model="person.name" />
+        </div>
+
+        <div>
+            <label>Age: (primitive)</label>
+            <input type="text" ng-model="person.age" />  
+        </div>
+
+        <div>
+            <label>Favorite Sport: (nested object)</label>
+            <input type="text" ng-model="person.favoriteSport.name" />  
+        </div>
+
+        <div ng-repeat="color in person.favoriteColors">
+            <label>Color: (array of object)</label>
+            <input type="text" ng-model="color.name" />  
+        </div>
+
+        <br/>
+
+        <div>
+            <button ng-click="onReset()">Reset</button>
+            <button ng-click="onResetCurrent()">Reset Current</button>
+            <button ng-click="onRemove()">Remove</button>
+            <button ng-click="onRemoveAll()">Remove All</button>
+            <button ng-click="onClear()">Clear</button>
+            <button ng-click="onSubmit()" ng-disabled="!hasChanges">Submit</button>
+            <button ng-click="onLoad()">Load</button>
+            <button ng-click="onManualChange()">Change Manually</button>
+        </div>
+
+        <br/>
+
+        <div ng-show="changeset">
+            <label>Changeset:</label>
+            <div style="background: #eeeeee; padding: 10px;">{{changeset | json}}</div>
+        </div>
+
+        <script src="libs/angular.min.js"></script>
+        <script src="js/app.js"></script>
+        <script src="js/Person.js"></script>
+        <script src="js/demoCtrl.js"></script>
+        <script src="../src/ngObjectContext.js"></script>
+    </body>
+</html>

@@ -1,7 +1,7 @@
 (function() {
   'use strict';
   
-  demoApp.controller('demoCtrl', 
+  angular.module('demoApp').controller('demoCtrl', 
     ['$scope', 'objectContext', 
     function($scope, objectContext) {
       // Get/create an instance of the object context
@@ -16,7 +16,7 @@
       
       // Add a change listener so that whenever changes are evaluated, we get notified
       // of the change and can change the state of our submit button.
-      context.setOnChangeListener(onContextHasChangesListener);
+      context.subscribeChangeListener(onContextHasChangesListener);
       function onContextHasChangesListener(hasChanges) {
         $scope.hasChanges = hasChanges;
       }
@@ -27,17 +27,17 @@
        * Submits all changed objects that have been loaded into the context, to the
        * server and print out the changeset.
        */
-      $scope.onSubmit = function() {
+      $scope.onApplyChanges = function() {
         $scope.changeset = context.getChangeset($scope.person);
         console.log($scope.changeset);
-        context.save();
+        context.applyChanges();
       };
       
       /**
        * Returns the currently loaded person object to its original state.
        */
-      $scope.onResetCurrent = function() {
-        context.revert($scope.person);
+      $scope.onResetCurrent = function(object) {
+        context.revert(object);
         $scope.changeset = null;
       };
       
@@ -54,6 +54,7 @@
        * selected person.
        */
       $scope.getObjectStatus = function() {
+        if (!$scope.person) return undefined;
         return context.getObjectStatus($scope.person);
       };
       
@@ -96,8 +97,8 @@
       /**
        * Removes the currently selected person from the context.
        */ 
-      $scope.onRemove = function() {
-        context.remove($scope.person);
+      $scope.onRemove = function(object) {
+        context.remove(object, true);
         $scope.person = null;
       };
       
@@ -105,16 +106,16 @@
        * Removes all objects from the context. Similar to clear.
        */ 
       $scope.onRemoveAll = function() {
-        context.removeAll();
+        context.removeAll(true);
         $scope.person = null;
       };
       
       /**
-       * This is a test case for changing the value of an object from code 
-       * and calling context.evaluate() manually.
+       * Adds a color to the colors collection.
        */
-      $scope.onManualChange = function() {
-        $scope.person.arrayOfArrays[1][0].test = 'newTestAryValue';
+      $scope.onAddColor = function() {
+        if (!$scope.person) return; 
+        $scope.person.favoriteColors.push({name: 'Gold'});
         context.evaluate();
       }
     }

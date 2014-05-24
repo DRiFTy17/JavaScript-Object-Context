@@ -6,7 +6,7 @@
         <link rel="stylesheet" href="libs/bootstrap.min.css" />
     </head>
 
-    <body ng-app="demoApp" ng-controller="demoCtrl">
+    <body ng-app="demoApp" ng-controller="demoCtrl" style="padding: 10px;">
         <div class="container">
             <div class="row">
                 <h1>Angular Object Context Demo</h1>
@@ -49,7 +49,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr ng-repeat="object in getObjects()" ng-class="{'info': object === person}">
+                            <tr ng-repeat="object in getPeople()" ng-class="{'info': object === person}">
                                 <td>
                                     <button class="btn btn-primary" ng-click="setPerson(object)">Select</button>
                                 </td>
@@ -102,6 +102,9 @@
                                         <td style="text-align: center; vertical-align: middle; font-weight: bold;">{{$index+1}}</td>
                                         <td>
                                             <input type="text" class="form-control" ng-model="color.name" />  
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-danger" ng-click="onRemoveColor(color)">Delete</button>
                                         </td>
                                     </tr>
                                 </tbody>

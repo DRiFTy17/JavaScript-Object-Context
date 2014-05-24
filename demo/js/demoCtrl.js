@@ -61,10 +61,19 @@
       /**
        * Fetches and returns all objects loaded into the context.
        */ 
-      $scope.getObjects = function() {
+      $scope.getPeople = function() {
+        var people = [];
         var objects = context.getObjects();
-        $scope.contextObjectCount = objects.length;
-        return objects;
+        
+        for (var i=0; i<objects.length; i++) {
+            if (objects[i]._objectMeta.type === 'Person') {
+                people.push(objects[i]);
+            }
+        }
+        
+        $scope.contextObjectCount = people.length;
+        
+        return people;
       };
       
       /**
@@ -100,6 +109,11 @@
       $scope.onRemove = function(object) {
         context.remove(object, true);
         $scope.person = null;
+      };
+      
+      $scope.onRemoveColor = function(color) {
+          $scope.person.favoriteColors.splice($scope.person.favoriteColors.indexOf(color), 1);
+          context.remove(color);
       };
       
       /**

@@ -261,26 +261,123 @@
      * property.
      * 
      * @param {object} obj An object to add to the context that will be tracked for changes.
+     * @param {object} parent The root parent of obj.
+     * @param {boolean} isStatusNew Whether or not this object should be added with a status of 'New' or not.
      */
-    ObjectContext.prototype.add = function(obj) {
+    ObjectContext.prototype.add = function(obj, parent, isStatusNew) {
+        // Restrict passed in values to be an object
+        if (typeof obj !== 'object' || obj instanceof Array) {
+            throw ObjectContextException('Invalid object specified. The value provided must be of type "object".');
+        }
+        
         if (this._doesObjectExist(obj)) {
             throw ObjectContextException('Object already exists in the context.');
         }
 
-        // Make sure this object has a metadata property. If not, then add it.
-        if (!obj._objectMeta || !obj._objectMeta.status || !obj._objectMeta.type) {
+        if (!obj._objectMeta) {
             obj._objectMeta = {
-                status: this.ObjectStatus.New,
+                status: isStatusNew ? this.ObjectStatus.New : this.ObjectStatus.Unmodified,
                 type: 'Object'
             };
-        } else if (obj._objectMeta.status !== this.ObjectStatus.New &&
+        } 
+        else if (!obj._objectMeta.status) {
+            obj._objectMeta.status = this.ObjectStatus.Unmodified;
+        }
+        else if (!obj._objectMeta.type) {
+            obj._objectMeta.type = 'Object';
+        }
+        
+        if (obj._objectMeta.status !== this.ObjectStatus.New &&
             obj._objectMeta.status !== this.ObjectStatus.Unmodified &&
             obj._objectMeta.status !== this.ObjectStatus.Modified &&
             obj._objectMeta.status !== this.ObjectStatus.Deleted) {
             throw ObjectContextException(this.stringFormat('Invalid object status: {0}', obj._objectMeta.status));
         }
 
-        this._objectMap.push(this._createMappedObject(obj));
+        this._objectMap.push(this._createMappedObject(obj, parent));
+        this._addChildren(obj, parent, isStatusNew);
+    };
+
+    /**
+     * Find any children on the provided object that can be added to context.
+     * 
+     * @param {object} obj
+     * @param {parent} parent
+     * @param {boolean} isStatusNew Whether or not this object should be added with a status of 'New' or not.
+     */
+    ObjectContext.prototype._addChildren = function(obj, parent, isStatusNew) {
+        // Check to see if there are any child objects that need to be added to
+        // the context. This includes arrays of objects as well.
+        for (var property in obj) {
+            if (!this._isTrackableProperty(obj, property)) {
+                continue;
+            }
+            
+            if (obj[property] instanceof Array) {
+                this._addArray(obj[property], parent || obj, isStatusNew);
+            }
+            else if (typeof obj[property] === 'object') {
+                if (this._doesObjectExist(obj[property])) {
+                    continue;
+                }
+                
+                this.add(obj[property], parent || obj, isStatusNew);
+            }
+        }
+    };
+
+    /**
+     * Takes the pased array and adds each of its elements to the the context.
+     * 
+     * If an element is an array, it will recurse.
+     * 
+     * @param {array} ary The array to add to the context.
+     * @param {boolean} isStatusNew Whether or not this object should be added with a status of 'New' or not.
+     */
+    ObjectContext.prototype._addArray = function(ary, parent, isStatusNew) {
+        if (!ary instanceof Array) {
+            throw ObjectContextException('An array must be specified.');
+        }
+        
+        for (var i=0; i<ary.length; i++) {
+            if (typeof ary[i] === 'function') {
+                continue;
+            }
+            
+            if (ary[i] instanceof Array) {
+                this._addArray(ary[i], parent, isStatusNew);
+            }
+            else if (typeof ary[i] === 'object') {
+                if (this._doesObjectExist(ary[i])) {
+                    continue;
+                }
+                
+                this.add(ary[i], parent, isStatusNew);
+            }
+            else {
+                throw ObjectContextException(this.stringFormat('Invalid array item type found ("{0}") at index {1}.', typeof ary[i], i));
+            }
+        }
+    };
+
+    /**
+     * Determines if the passed property exists on the object, is not a function,
+     * and doesn't start with a reserved character. If all of those are false, then
+     * the property can be tracked.
+     * 
+     * @param {object} obj The object to check the property against.
+     * @param {string} property The property to check.
+     * @returns {boolean} True if the property can be tracked, false otherwise.
+     */
+    ObjectContext.prototype._isTrackableProperty = function(obj, property) {
+        if (!obj.hasOwnProperty(property) || 
+            typeof obj[property] === 'function' ||
+            property.toString().substring(0, 1) === '_' || 
+            property.toString().substring(0, 1) === '$') {
+            return false;
+        }
+        
+        return true;
     };
 
     /**
@@ -291,7 +388,7 @@
      * 
      * @param {object} obj An object to wrap.
      */
-    ObjectContext.prototype._createMappedObject = function(obj) {
+    ObjectContext.prototype._createMappedObject = function(obj, parent) {
         var self = this;
         
         return {
@@ -318,7 +415,12 @@
             /**
              * An array holding the changes to the current object.
              */
-            changeset: []
+            changeset: [],
+            /**
+             * A reference to the root object that this object is a child of.
+             * If this is the parent, then the value is null.
+             */
+            parent: parent
         };
     };
 
@@ -338,7 +440,8 @@
     };
 
     /**	
-     * Removes an existing object from change tracking.
+     * Removes an existing object from change tracking and all objects that are a
+     * child of the provided object.
      * 
      * @param {object} obj An object to remove.
      * @param {boolean} hardRemove Whether or not to remove the object from the context, or just mark it for deletion.
@@ -352,9 +455,27 @@
 
         if (hardRemove === true) {
             this._objectMap.splice(index, 1);
-        } 
+        }
         else {
             this._objectMap[index].current._objectMeta.status = this.ObjectStatus.Deleted;
+        }
+
+        // Remove all objects that are a child of this object
+        for (var i=this._objectMap.length-1; i>=0; i--) {
+            var currentObject = this._objectMap[i];
+            
+            if (currentObject.current === obj) {
+                continue;
+            }
+            
+            if (currentObject.parent === obj) {
+                if (hardRemove === true) {
+                    this._objectMap.splice(i, 1);
+                }
+                else {
+                    currentObject.current._objectMeta.status = this.ObjectStatus.Deleted;
+                }
+            }
         }
 
         this.evaluate();
@@ -455,7 +576,7 @@
      *
      * Will recursively evaluate child properties that are arrays/objects themselves.
      */
-    ObjectContext.prototype.evaluate = function() {
+    ObjectContext.prototype.evaluate = function() {        
         // Loop through each of the objects currently loaded, and evaluate them for
         // changes. If the object is marked as deleted/new, then it will be skipped as 
         // we already know that there are changes.
@@ -467,9 +588,13 @@
                 continue;
             }
 
-            this._evalObject(mappedObj.current, mappedObj.current, '');
-        }
+            // First we need to check if there are any new objects to add from 
+            // any arrays within the hierarchy of the currently mapped
+            this._addChildren(mappedObj.current, mappedObj.parent, true);
 
+            this._checkForChanges(mappedObj);
+        }
+console.log(this._objectMap);
         // Now that the evaluate loop has finished, call any change listeners subscribed to us
         for (var x = 0; x < this._changeListeners.length; x++) {
             var listener = this._changeListeners[x];
@@ -479,127 +604,74 @@
             }
         }
     };
-
+    
     /**
-     * Recursively evaluates the properties on the provided object. Builds
-     * up a string path to each property to determine its value.
+     * Checks to see if this mapped object has any properties in the current 
+     * object that have changed from the original.
      * 
-     * @param {object} objectReference The parent object we are evaluating.
-     * @param {object} obj The current object to evaluate for changes.
-     * @param {string} path The current path to the property we are evaluating.
+     * Any functions/private properties are skipped. Any object/arrays are skipped
+     * because those will be evaluated at a later time.
+     * 
+     * @param {object} obj The mapped object to evaluate for changes.
      */
-    ObjectContext.prototype._evalObject = function(objectReference, obj, path) {
-        for (var property in obj) {
-            if (!obj.hasOwnProperty(property) || typeof obj[property] === 'function') {
+    ObjectContext.prototype._checkForChanges = function(obj) {
+        for (var property in obj.current) {
+            // Skip private/angular/array/object properties
+            if (!this._isTrackableProperty(obj.current, property)) {
                 continue;
             }
 
-            // Skip private/angular properties
-            if (property.toString().substring(0, 1) === '_' || property.toString().substring(0, 1) === '$') {
-                continue;
-            }
-
-            // Determine what to do based on the type of property we are evaluating
-            // Evaluate arrays first, because typeof returns 'object' for arrays
-            if (obj[property] instanceof Array) {
-                this._evalArray(objectReference, obj[property], this.stringFormat('{0}["{1}"]', path, property));
-            } 
-            else if (typeof obj[property] === 'object') {
-                this._evalObject(objectReference, obj[property], this.stringFormat('{0}["{1}"]', path, property));
-            } 
-            else {
-                this._checkForChanges(objectReference, this.stringFormat('{0}["{1}"]', path, property));
-            }
-        }
-    };
-
-    /**
-     * Recursively evaluates the elements of the passed in array, and tests
-     * each value based on its type for any changes from its original state.
-     * 
-     * @param {object} objectReference The parent object we are evaluating.
-     * @param {array} ary The current array to evaluate changes against.
-     * @param {string} path The current path to the property we are evaluating.
-     */
-    ObjectContext.prototype._evalArray = function(objectReference, ary, path) {
-        // First check the array lengths to see if they are different, if so 
-        // then we have changes so stop
-        var mappedObjectIndex = this._getMapIndex(objectReference);
-        var mappedObject = this._getMappedObject(objectReference);
-
-        var currentVal = eval('this._objectMap[' + mappedObjectIndex + '].current' + path);
-        var originalVal = eval('this._objectMap[' + mappedObjectIndex + '].original' + path);
-
-        if (!originalVal instanceof Array || !currentVal instanceof Array) {
-            if (mappedObject.current._objectMeta.status === this.ObjectStatus.Unmodified) {
-                mappedObject.current._objectMeta.status = this.ObjectStatus.Modified;
-            }
-            return;
-        }
-        else if (originalVal.length !== currentVal.length) {
-            if (mappedObject.current._objectMeta.status === this.ObjectStatus.Unmodified) {
-                mappedObject.current._objectMeta.status = this.ObjectStatus.Modified;
-            }
-            return;
-        }
-
-        for (var i=0; i<ary.length; i++) {
-            if (typeof ary[i] === 'function') {
-                continue;
-            }
-
-            if (typeof ary[i] === 'object') {
-                this._evalObject(objectReference, ary[i], this.stringFormat('{0}[{1}]', path, i));
-            } 
-            else if (ary[i] instanceof Array) {
-                this._evalArray(objectReference, ary[i], this.stringFormat('{0}[{1}]', path, i));
-            } 
-            else {
-                this._checkForChanges(objectReference, this.stringFormat('{0}[{1}]', path, i));
-            }
-        }
-    };
-
-    /**
-     * Determines if there are any changes to the current object.
-     *
-     * If a change is found, the property name will be added to the changeset.
-     * 
-     * @param {object} objectReference The parent object we are evaluating.
-     * @param {string} property The current property name we are evaluating
-     * @param {string} path The current path to the property we are evaluating.
-     */
-    ObjectContext.prototype._checkForChanges = function(objectReference, path) {
-        var mappedObject = this._getMappedObject(objectReference);
-
-        if (mappedObject === null) {
-            throw ObjectContextException('Object not found.');
-        }
-
-        var mappedObjectIndex = this._getMapIndex(objectReference);
-
-        try {
-            // Get the current and original values using the path to the object
-            var currentVal = eval('this._objectMap[' + mappedObjectIndex + '].current' + path);
-            var originalVal = eval('this._objectMap[' + mappedObjectIndex + '].original' + path);
-
-            // Create a path to use in the changeset. This will hold the absolute path
-            // to any properties contained in the objects.
-            var valuePath = this.stringFormat('[{0}]{1}', mappedObjectIndex, path);
-
-            // If the current value is different than its original and this property
-            // hasn't already been added to the changeset for this object, then add it.
-            if (currentVal !== originalVal && mappedObject.changeset.indexOf(valuePath) < 0) {
-                mappedObject.changeset.push(valuePath);
-
-                // Update the object status to modified only if it is currently unmodified
-                if (mappedObject.current._objectMeta.status === this.ObjectStatus.Unmodified) {
-                    mappedObject.current._objectMeta.status = this.ObjectStatus.Modified;
+            // If this property is an array then check to see if the length has changed.
+            // Otherwise just compare the properties values
+            if (obj.current[property] instanceof Array) {
+                if (!(obj.original[property] instanceof Array)) {
+                    throw ObjectContextException('Property type ("Array") has been modified from the original type.');
+                }
+                
+                if (obj.current[property].length !== obj.original[property].length) {
+                    this._setPropertyChanged(obj, property);
                 }
             }
-        } 
-        catch (e) {
-            console.log(e, 'Unable to evaluate current or original values. checkForChanges() failed.');
+            else if (typeof obj.current[property] !== 'object' && obj.current[property] !== obj.original[property]) {
+                this._setPropertyChanged(obj, property);
+            }
+        }
+    };
+
+    /**
+     * Adds an object to the changeset if it doesn't already exist. If it does
+     * exist then it the current value on that changeset record is updated with
+     * the new current value.
+     * 
+     * @param {object} obj The mapped object to update.
+     * @param {string} property The property that was changed.
+     */
+    ObjectContext.prototype._setPropertyChanged = function(obj, property) {
+        // Check if this property has already been added to the changeset
+        var existingChangeEntry = null;
+        for (var i=0; i<obj.changeset.length; i++) {
+            if (obj.changeset[i].propertyName === property.toString()) {
+                existingChangeEntry = obj.changeset[i];
+                break;
+            }
+        }
+
+        if (existingChangeEntry !== null) {
+            // Update the existing changeset entry current value
+            existingChangeEntry.currentValue = obj.current[property];
+        }
+        else {
+            // Add a new changeset entry
+            obj.changeset.push({
+                propertyName: property.toString(),
+                originalValue: obj.original[property],
+                currentValue: obj.current[property]
+            });
+
+            // Update the object status to modified only if it is currently unmodified
+            if (obj.current._objectMeta.status === this.ObjectStatus.Unmodified) {
+                obj.current._objectMeta.status = this.ObjectStatus.Modified;
+            }
         }
     };
 
@@ -619,8 +691,7 @@
             throw ObjectContextException('Could not determine object index. Revert changes failed.');
         }
 
-        var item = this._resetObject(this._objectMap[itemIndex]);
-
+        this._resetObject(this._objectMap[itemIndex]);
         this.evaluate();
     };
 
@@ -644,13 +715,47 @@
         if (!obj) {
             throw ObjectContextException('Invalid object provided.');
         }
-        
-        this._revertProperties(obj);
-        this._restoreOriginal(obj);
+
+        // Revert all the changes in the changeset for this object back their original values
+        for (var i=0; i<obj.changeset.length; i++) {
+            var property = obj.changeset[i].propertyName;
+            
+            if (!obj.current[property] instanceof Array) {
+                obj.current[property] = obj.original[property];
+            }
+            else {
+                for (var x=obj.current[property].length-1; x>=0; x--) {
+                    if (obj.current[property][x]._objectMeta.status === this.ObjectStatus.New) {
+                        obj.current[property].splice(x, 1);
+                    }
+                }
+            }
+        }
         
         obj.current._objectMeta.status = obj.original._objectMeta.status;
-        
         obj.changeset = [];
+        
+        // Now check for any objects that are a child of this object (if it is a parent)
+        if (!obj.parent) {
+            for (var j=this._objectMap.length-1; j>=0; j--) {
+                var currentObject = this._objectMap[j];
+                
+                if (currentObject === obj) {
+                    continue;
+                }
+                
+                // Remove this object from the context if it is marked as 'New'
+                if (currentObject.current._objectMeta.status === this.ObjectStatus.New) {
+                    this._objectMap.splice(j, 1);
+                }
+                else if (currentObject.current._objectMeta.status === this.ObjectStatus.Deleted) {
+                    currentObject.current._objectMeta.status = this.original._objectMeta.status;
+                }
+                else if (currentObject.parent === obj.current) {
+                    this._resetObject(currentObject);
+                }
+            }
+        }
     };
 
     /**
@@ -770,82 +875,13 @@
             throw ObjectContextException('Invalid object provided.');
         }
         
-        var self = this;
-        var changes = {};
-
-        var mappedObjectIndex = this._getMapIndex(obj);
-        
-        if (mappedObjectIndex === null) {
-            throw ObjectContextException('Invalid object index.');
-        }
-        
         var mappedObject = this._getMappedObject(obj);
 
         if (!mappedObject) {
             throw ObjectContextException('The object could not be found.');
         }
 
-        // Add each changed property to the changes object
-        for (var i = 0; i < mappedObject.changeset.length; i++) {
-            var changePath = mappedObject.changeset[i];
-            var changedProperty = changePath.replace('["', '').replace('"]', '');
-
-            try {
-                var secondBracketPosition = changePath.indexOf(']');
-
-                var objectMapIndexPath = changePath.substring(0, secondBracketPosition + 1);
-                var newChangePath = changePath.substring(secondBracketPosition + 1, changePath.length);
-
-                var currentVal = eval(this.stringFormat('this._objectMap{0}["current"]{1}', objectMapIndexPath, newChangePath));
-                var originalVal = eval(this.stringFormat('this._objectMap{0}["original"]{1}', objectMapIndexPath, newChangePath));
-
-                changes[changedProperty] = {
-                    original: originalVal,
-                    current: currentVal
-                };
-
-                // // Add this property to the changes objects
-                // var pathAry = newChangePath.replace(/\]\[/gi, "],[").split(',');
-
-                // // Create clean strings from each path name
-                // for (var x=0; x<pathAry.length; x++) {
-                //   pathAry[x] = pathAry[x].replace('["', '').replace('"]', '');
-                // }
-
-                // var previousPathProperty = null;
-
-                // for (var j=0; j<pathAry.length; j++) {
-                //   var currentPathProperty = pathAry[j];
-
-                //   // Determine if this is an array index or property name
-                //   var isArrayIndex = !isNaN(currentPathProperty);
-
-                //   if (isArrayIndex) {
-                //     if (Object.keys(changes[previousPathProperty]).length === 0) {
-                //       changes[previousPathProperty] = [{}];
-                //     }
-                //     else {
-                //       changes[previousPathProperty][parseInt(currentPathProperty)] = {};
-                //     }
-                //   }
-                //   else {
-                //     if (!isNaN(previousPathProperty)) {
-                //       //changes[]
-                //     }
-                //     else {
-                //       changes[currentPathProperty] = {};
-                //     }
-                //   }
-
-                //   previousPathProperty = currentPathProperty;
-                // }
-            } catch (e) {
-                console.log(e, 'Unable to evaluate current or original values. getChangeset() failed.');
-                return {};
-            }
-        }
-
-        return changes;
+        return mappedObject.changeset;
     };
 
     /**

@@ -454,7 +454,7 @@
      * @param {object} obj An object to delete.
      * @param {boolean} hardDelete Whether or not to remove the object from the context, or just mark it for deletion.
      */
-    ObjectContext.prototype.delete = function(obj, hardDelete) {
+    ObjectContext.prototype.deleteObject = function(obj, hardDelete) {
         var index = this._getMapIndex(obj);
 
         if (index === null) {

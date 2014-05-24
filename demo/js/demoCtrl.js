@@ -113,12 +113,12 @@
        * Removes the currently selected person from the context.
        */ 
       $scope.onRemove = function(object) {
-        context.delete(object);
+        context.deleteObject(object);
       };
       
       $scope.onRemoveColor = function(color) {
           $scope.person.favoriteColors.splice($scope.person.favoriteColors.indexOf(color), 1);
-          context.delete(color, true);
+          context.deleteObject(color, true);
       };
       
       /**

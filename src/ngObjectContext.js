@@ -162,21 +162,21 @@
         this._endpointUri = uri;
 
         /**
-         * Add a reference to the Angular $rootScope so we can add digest watches.
+         * A reference to the Angular $rootScope so we can add digest watches.
          * 
          * @private
          */
         this._rootScope = rootScope;
 
         /**
-         * Add a reference to the Angular $q service for promises.
+         * A reference to the Angular $q service for promises.
          * 
          * @private
          */
         this._q = q;
 
         /**
-         * Add a reference to the Angular $http service for HTTP requests.
+         * A reference to the Angular $http service for HTTP requests.
          * 
          * @private
          */
@@ -261,10 +261,10 @@
      * property.
      * 
      * @param {object} obj An object to add to the context that will be tracked for changes.
-     * @param {object} parent The root parent of obj.
+     * @param {object} rootParent The root parent of obj.
      * @param {boolean} isStatusNew Whether or not this object should be added with a status of 'New' or not.
      */
-    ObjectContext.prototype.add = function(obj, parent, isStatusNew) {
+    ObjectContext.prototype.add = function(obj, rootParent, parent, isStatusNew) {
         // Restrict passed in values to be an object
         if (typeof obj !== 'object' || obj instanceof Array) {
             throw ObjectContextException('Invalid object specified. The value provided must be of type "object".');
@@ -286,6 +286,9 @@
         else if (!obj._objectMeta.type) {
             obj._objectMeta.type = 'Object';
         }
+        else if (obj._objectMeta && obj._objectMeta.status && obj._objectMeta.status === this.ObjectStatus.New) {
+            isStatusNew = true;
+        }
         
         if (obj._objectMeta.status !== this.ObjectStatus.New &&
             obj._objectMeta.status !== this.ObjectStatus.Unmodified &&
@@ -294,18 +297,18 @@
             throw ObjectContextException(this.stringFormat('Invalid object status: {0}', obj._objectMeta.status));
         }
 
-        this._objectMap.push(this._createMappedObject(obj, parent));
-        this._addChildren(obj, parent, isStatusNew);
+        this._objectMap.push(this._createMappedObject(obj, rootParent, parent));
+        this._addChildren(obj, rootParent, isStatusNew);
     };
 
     /**
      * Find any children on the provided object that can be added to context.
      * 
      * @param {object} obj
-     * @param {parent} parent
+     * @param {object} rootParent
      * @param {boolean} isStatusNew Whether or not this object should be added with a status of 'New' or not.
      */
-    ObjectContext.prototype._addChildren = function(obj, parent, isStatusNew) {
+    ObjectContext.prototype._addChildren = function(obj, rootParent, isStatusNew) {
         // Check to see if there are any child objects that need to be added to
         // the context. This includes arrays of objects as well.
         for (var property in obj) {
@@ -314,14 +317,14 @@
             }
             
             if (obj[property] instanceof Array) {
-                this._addArray(obj[property], parent || obj, isStatusNew);
+                this._addArray(obj[property], rootParent || obj, isStatusNew);
             }
             else if (typeof obj[property] === 'object') {
                 if (this._doesObjectExist(obj[property])) {
                     continue;
                 }
                 
-                this.add(obj[property], parent || obj, isStatusNew);
+                this.add(obj[property], rootParent || obj, obj, isStatusNew);
             }
         }
     };
@@ -332,9 +335,10 @@
      * If an element is an array, it will recurse.
      * 
      * @param {array} ary The array to add to the context.
+     * @param {object} rootParent The root parent of this array.
      * @param {boolean} isStatusNew Whether or not this object should be added with a status of 'New' or not.
      */
-    ObjectContext.prototype._addArray = function(ary, parent, isStatusNew) {
+    ObjectContext.prototype._addArray = function(ary, rootParent, isStatusNew) {
         if (!(ary instanceof Array)) {
             throw ObjectContextException('An array must be specified.');
         }
@@ -345,14 +349,14 @@
             }
             
             if (ary[i] instanceof Array) {
-                this._addArray(ary[i], parent, isStatusNew);
+                this._addArray(ary[i], rootParent, isStatusNew);
             }
             else if (typeof ary[i] === 'object') {
                 if (this._doesObjectExist(ary[i])) {
                     continue;
                 }
                 
-                this.add(ary[i], parent, isStatusNew);
+                this.add(ary[i], rootParent, ary, isStatusNew);
             }
             else {
                 throw ObjectContextException(this.stringFormat('Invalid array item type found ("{0}") at index {1}.', typeof ary[i], i));
@@ -388,7 +392,7 @@
      * 
      * @param {object} obj An object to wrap.
      */
-    ObjectContext.prototype._createMappedObject = function(obj, parent) {
+    ObjectContext.prototype._createMappedObject = function(obj, rootParent, parent) {
         var self = this;
         
         return {
@@ -419,6 +423,10 @@
             /**
              * A reference to the root object that this object is a child of.
              * If this is the parent, then the value is null.
+             */
+            rootParent: rootParent,
+            /**
+             * A reference to the direct parent object of this object.
              */
             parent: parent
         };
@@ -453,6 +461,12 @@
             throw ObjectContextException('Object was not found. Removal failed.');
         }
 
+        // If this object has a status of new (then just remove the object completely)
+        // along with any of its children.
+        if (this._objectMap[index].current._objectMeta.status === this.ObjectStatus.New) {
+            hardDelete = true;
+        }
+
         // Are we removing the object or just marking it as deleted
         if (hardDelete === true) {
             this._objectMap.splice(index, 1);
@@ -469,7 +483,7 @@
                 continue;
             }
             
-            if (currentObject.parent === obj) {
+            if (currentObject.rootParent === obj) {
                 if (hardDelete === true) {
                     this._objectMap.splice(i, 1);
                 }
@@ -591,11 +605,11 @@
 
             // First we need to check if there are any new objects to add from 
             // any arrays within the hierarchy of the currently mapped
-            this._addChildren(mappedObj.current, mappedObj.parent, true);
+            this._addChildren(mappedObj.current, mappedObj.rootParent, true);
 
             this._checkForChanges(mappedObj);
         }
-console.log(this._objectMap);
+
         // Now that the evaluate loop has finished, call any change listeners subscribed to us
         for (var x = 0; x < this._changeListeners.length; x++) {
             var listener = this._changeListeners[x];
@@ -738,7 +752,7 @@ console.log(this._objectMap);
         obj.changeset = [];
         
         // Now check for any objects that are a child of this object (if it is a parent)
-        if (!obj.parent) {
+        if (!obj.rootParent) {
             for (var j=this._objectMap.length-1; j>=0; j--) {
                 var currentObject = this._objectMap[j];
                 
@@ -746,14 +760,13 @@ console.log(this._objectMap);
                     continue;
                 }
                 
-                // Remove this object from the context if it is marked as 'New'
                 if (currentObject.current._objectMeta.status === this.ObjectStatus.New) {
-                    this._objectMap.splice(j, 1);
+                    continue;
                 }
                 else if (currentObject.current._objectMeta.status === this.ObjectStatus.Deleted) {
-                    currentObject.current._objectMeta.status = this.original._objectMeta.status;
+                    currentObject.current._objectMeta.status = currentObject.original._objectMeta.status;
                 }
-                else if (currentObject.parent === obj.current) {
+                else if (currentObject.rootParent === obj.current) {
                     this._resetObject(currentObject);
                 }
             }
@@ -810,7 +823,7 @@ console.log(this._objectMap);
 
         var fullChangeset = mappedObject ? mappedObject.changeset : [];
 
-        if (!obj || (includeChildren && !mappedObject.parent)) {
+        if (!obj || (includeChildren && !mappedObject.rootParent)) {
             for (var i=0; i<this._objectMap.length; i++) {
                 var current = this._objectMap[i];
                 
@@ -818,7 +831,7 @@ console.log(this._objectMap);
                     if (current === mappedObject) {
                         continue;
                     }
-                    else if (current.parent === mappedObject.current && current.changeset.length > 0) {
+                    else if (current.rootParent === mappedObject.current && current.changeset.length > 0) {
                         fullChangeset = fullChangeset.concat(current.changeset);
                     }
                 }
@@ -854,28 +867,26 @@ console.log(this._objectMap);
     };
 
     /**
-     * Attempts to fetch the requested type and load it into the context by
-     * sending a GET request to the server for that type, along with optional
-     * query parameters.
+     * Sends a GET request to the server using the configured endpoint URI.
      * 
-     * This GET request will be looking for a service method in the format of 'getType'.
+     * 
      * 
      * Example:
      *     - Call: context.get('Person', {Id: 1});
      *     - Service method: 'getPerson(params)'
      * 
-     * @param {string} type The type of object we are requesting.
-     * @param {object} parameters The query parameters (optional);
+     * @param {string} resource The resource name to fetch.
+     * @param {object} queryParameters The query parameters (optional);
      * @returns {object} An AngularJS promise.
      */
-    ObjectContext.prototype.get = function(type, parameters) {
+    ObjectContext.prototype.get = function(resource, queryParameters) {
         var self = this;
 
-        if (!parameters) {
-            parameters = {};
+        if (!queryParameters) {
+            queryParameters = {};
         }
 
-        if (!type || type.toString().trim().length === 0) {
+        if (!resource || resource.toString().trim().length === 0) {
             throw ObjectContextException('Invalid type specified.');
         }
 
@@ -885,35 +896,32 @@ console.log(this._objectMap);
 
         var deferred = this._q.defer();
 
-        // TODO: Send request to load a specific object type. When the request returns
-        //       we need to add it to the context.
-
         this.isLoading = true;
 
         // Check if we need to add a slash to the URI
         var separator = this._endpointUri.slice(-1) === '/' ? '' : '/';
 
-        // this._http({ method: 'GET', url: this._endpointUri + separator + 'load' })
-        // .success(function(data, status, headers, config) {
-        //     self.add(data);
-        //     self.evaluate();
+//        this._http({method: 'GET', url: this._endpointUri + separator + resource})
+//        .success(function(data, status, headers, config) {
+//            self.add(data);
+//            self.evaluate();
+//
+//            this.isLoading = false;
+//
+//            deferred.resolve(data);
+//        })
+//        .error(function(data, status, headers, config) {
+//            deferred.reject(data);
+//        });
 
-        //     this.isLoading = false;
-
-        //     deferred.resolve(data);
-        // })
-        // .error(function(data, status, headers, config) {
-        //     deferred.reject(data);
-        // });
-
-        (function() {
-            var newPerson = new Person(new Date().getTime(), "Brad", 51);
-            newPerson._objectMeta.status = self.ObjectStatus.New;
-            self.add(newPerson);
-            self.isLoading = false;
-            deferred.resolve(newPerson);
-            self.evaluate();
-        })();
+(function() {
+    var newPerson = new Person(new Date().getTime(), "Brad", 51);
+    newPerson._objectMeta.status = self.ObjectStatus.New;
+    self.add(newPerson);
+    self.isLoading = false;
+    deferred.resolve(newPerson);
+    self.evaluate();
+})();
 
         return deferred.promise;
     };
@@ -977,13 +985,79 @@ console.log(this._objectMap);
         var objects = [];
 
         for (var i = 0; i < this._objectMap.length; i++) {
-            if (this._objectMap[i].current._objectMeta.status === this.ObjectStatus.Deleted) {
-                continue;
-            }
-
             objects.push(this._objectMap[i].current);
         }
 
+        return objects;
+    };
+
+    /**
+     * Returns all objects that have status of 'Unmodified'.
+     * 
+     * @param {boolean} parentsOnly Retrieve only parent objects.
+     * @returns {array} An array of objects with a status of 'Unmodified'.
+     */
+    ObjectContext.prototype.getUnmodifiedObjects = function(parentsOnly) {
+        return this._getObjectsByStatus(this.ObjectStatus.Unmodified, parentsOnly);
+    };
+
+    /**
+     * Returns all objects that have status of 'Modified'.
+     * 
+     * @param {boolean} parentsOnly Retrieve only parent objects.
+     * @returns {array} An array of objects with a status of 'Modified'.
+     */
+    ObjectContext.prototype.getModifiedObjects = function(parentsOnly) {
+        return this._getObjectsByStatus(this.ObjectStatus.Modified, parentsOnly);
+    };
+
+    /**
+     * Returns all objects that have status of 'New'.
+     * 
+     * @param {boolean} parentsOnly Retrieve only parent objects.
+     * @returns {array} An array of objects with a status of 'New'.
+     */
+    ObjectContext.prototype.getNewObjects = function(parentsOnly) {
+        return this._getObjectsByStatus(this.ObjectStatus.New, parentsOnly);
+    };
+    
+    /**
+     * Returns all objects that have status of 'Deleted'.
+     * 
+     * @param {boolean} parentsOnly Retrieve only parent objects.
+     * @returns {array} An array of objects with a status of 'Deleted'.
+     */
+    ObjectContext.prototype.getDeletedObjects = function(parentsOnly) {
+        return this._getObjectsByStatus(this.ObjectStatus.Deleted, parentsOnly);
+    };
+
+    /**
+     * Returns all objects (in their current state) that have the provided status.
+     * 
+     * @param {ObjectStatus} status The status of the requested objects.
+     * @param {boolean} parentsOnly Retrieve only parent objects.
+     * @returns {array} An array of objects with a status of 'status'.
+     */
+    ObjectContext.prototype._getObjectsByStatus = function(status, parentsOnly) {
+        if (!status ||
+            (status !== this.ObjectStatus.New &&
+            status !== this.ObjectStatus.Modified &&
+            status !== this.ObjectStatus.Unmodified &&
+            status !== this.ObjectStatus.Deleted)) {
+            throw ObjectContextException(this.stringFormat('Invalid status ("{0}"). ' +
+                  'Status must be either "Unmodified", "Modified", "New", or "Deleted".', status));
+        }
+        
+        var objects = [];
+        
+        for (var i=0; i<this._objectMap.length; i++) {
+            var mappedObject = this._objectMap[i];
+            
+            if (mappedObject.current._objectMeta.status === status && (!parentsOnly || (parentsOnly === true && !mappedObject.rootParent))) {
+                objects.push(this._objectMap[i].current);
+            }
+        }
+        
         return objects;
     };
 
@@ -1030,6 +1104,40 @@ console.log(this._objectMap);
         }
         
         this.evaluate();
+    };
+
+    /**
+     * Output the state and all objects in the context to the console.
+     */
+    ObjectContext.prototype.log = function() {
+        console.group('ObjectContext');
+        
+        console.log('Has Changes: ' + this.hasChanges());
+        console.log('Tracked Objects: ' + this._objectMap.length);
+        
+        var parentObjects = [];
+        for (var i=0; i<this._objectMap.length; i++) {
+            if (!this._objectMap[i].rootParent) {
+                parentObjects.push(this._objectMap[i]);
+            }
+        }
+        
+        console.group('Parent Objects');
+        console.dir(parentObjects);
+        console.groupEnd();
+        
+        console.group('All Objects');
+        console.dir(this._objectMap);
+        console.groupEnd();
+        
+        console.group('Changed Objects');
+        console.log('Unmodified', this.getUnmodifiedObjects());
+        console.log('Modified', this.getModifiedObjects());
+        console.log('New', this.getNewObjects());
+        console.log('Deleted', this.getDeletedObjects());
+        console.groupEnd();
+        
+        console.groupEnd();
     };
 
     /**

@@ -10,16 +10,22 @@
       // Create a person object and add it to the context
       $scope.person = new Person(1, 'Kieran', 25);
       context.add($scope.person);
-      
+
       // This controls the enabled state of our submit button
       $scope.hasChanges = false;
-      
+
       // Add a change listener so that whenever changes are evaluated, we get notified
       // of the change and can change the state of our submit button.
       context.subscribeChangeListener(onContextHasChangesListener);
       function onContextHasChangesListener(hasChanges) {
         $scope.hasChanges = hasChanges;
       }
+
+      context.log();
+      
+      $scope.onLogContext = function() {
+          context.log();
+      };
       
       /**
        * Handles submit button clicks.
@@ -108,7 +114,6 @@
        */ 
       $scope.onRemove = function(object) {
         context.delete(object);
-        $scope.person = null;
       };
       
       $scope.onRemoveColor = function(color) {

@@ -21,6 +21,7 @@
                 </h4>
                 <hr/>
                 <div>
+                    <button class="btn btn-primary" ng-click="onLogContext()">Log Context</button>
                     <button class="btn btn-warning" ng-click="onReset()">Reset All</button>
                     <button class="btn btn-danger" ng-click="onRemoveAll()">Remove All</button>
                     <button class="btn btn-success" ng-click="onApplyChanges()" ng-disabled="!hasChanges">Apply Changes</button>
@@ -39,6 +40,7 @@
                                 <td width="80">Reset</td>
                                 <td width="80">Remove</td>
                                 <td>Name</td>
+                                <td>Status</td>
                             </tr>
                         </thead>
                         <tbody>
@@ -53,6 +55,7 @@
                                     <button class="btn btn-danger" ng-click="onRemove(object)">Remove</button>
                                 </td>
                                 <td style="vertical-align: middle;">{{object.name}}</td>
+                                <td style="vertical-align: middle; width: 100px;">{{object._objectMeta.status}}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -88,7 +91,7 @@
                         </div>
 
                         <div class="form-group">
-                            <label>Color (array of objects):</label>
+                            <label>Favorite Colors (array of objects):</label>
                             <table class="table table-bordered">
                                 <tbody>
                                     <tr ng-repeat="color in person.favoriteColors">

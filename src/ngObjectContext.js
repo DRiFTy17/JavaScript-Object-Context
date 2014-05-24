@@ -457,7 +457,7 @@
         if (hardDelete === true) {
             this._objectMap.splice(index, 1);
         }
-        else {
+        else if (this._objectMap[index].current._objectMeta.status !== this.ObjectStatus.New) {
             this._objectMap[index].current._objectMeta.status = this.ObjectStatus.Deleted;
         }
 
@@ -473,7 +473,7 @@
                 if (hardDelete === true) {
                     this._objectMap.splice(i, 1);
                 }
-                else {
+                else if (currentObject.current._objectMeta.status !== this.ObjectStatus.New) {
                     currentObject.current._objectMeta.status = this.ObjectStatus.Deleted;
                 }
             }
@@ -789,9 +789,10 @@ console.log(this._objectMap);
      * Returns the changeset for a specified mapped object reference.
      * 
      * @param {object} obj The object to check for changes against.
+     * @param {boolean} includeChildren Pass true to include child changesets.
      * @returns {object} An object with the properties that have changed on the current object.
      */
-    ObjectContext.prototype.getChangeset = function(obj) {
+    ObjectContext.prototype.getChangeset = function(obj, includeChildren) {
         if (!obj) {
             throw ObjectContextException('Could not fetch changeset. Invalid object provided.');
         }
@@ -802,7 +803,22 @@ console.log(this._objectMap);
             throw ObjectContextException('The object could not be found.');
         }
 
-        return mappedObject.changeset;
+        var fullChangeset = mappedObject.changeset;
+
+        if (includeChildren && !mappedObject.parent) {
+            for (var i=0; i<this._objectMap.length; i++) {
+                var current = this._objectMap[i];
+                
+                if (current === mappedObject) {
+                    continue;
+                }
+                else if (current.parent === mappedObject.current && current.changeset.length > 0) {
+                    fullChangeset = fullChangeset.concat(current.changeset);
+                }
+            }
+        }
+
+        return fullChangeset;
     };
 
     /**

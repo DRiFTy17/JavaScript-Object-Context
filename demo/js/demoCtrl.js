@@ -29,10 +29,10 @@
        */
       $scope.onApplyChanges = function() {
           if ($scope.person) {
-              $scope.changeset = context.getChangeset($scope.person);
+              $scope.changeset = context.getChangeset($scope.person, true);
               console.log($scope.changeset);
           }
-          
+
           context.applyChanges();
       };
       
@@ -116,7 +116,7 @@
       
       $scope.onRemoveColor = function(color) {
           $scope.person.favoriteColors.splice($scope.person.favoriteColors.indexOf(color), 1);
-          context.delete(color);
+          context.delete(color, true);
       };
       
       /**

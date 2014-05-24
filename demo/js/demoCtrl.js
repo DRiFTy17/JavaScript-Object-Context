@@ -29,8 +29,7 @@
        */
       $scope.onApplyChanges = function() {
           if ($scope.person) {
-              $scope.changeset = context.getChangeset($scope.person, true);
-              console.log($scope.changeset);
+              console.log('Changeset: ', context.getChangeset($scope.person, true));
           }
 
           context.applyChanges();
@@ -41,7 +40,6 @@
        */
       $scope.onResetCurrent = function(object) {
         context.revert(object);
-        $scope.changeset = null;
       };
       
       /**
@@ -49,7 +47,6 @@
        */ 
       $scope.onReset = function() {
         context.revertAll();
-        $scope.changeset = null;
       };
       
       /**

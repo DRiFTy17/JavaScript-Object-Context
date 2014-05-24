@@ -666,7 +666,8 @@ console.log(this._objectMap);
             obj.changeset.push({
                 propertyName: property.toString(),
                 originalValue: obj.original[property],
-                currentValue: obj.current[property]
+                currentValue: obj.current[property],
+                object: obj.current
             });
 
             // Update the object status to modified only if it is currently unmodified
@@ -786,33 +787,42 @@ console.log(this._objectMap);
     };
 
     /**
-     * Returns the changeset for a specified mapped object reference.
+     * Returns the changeset for a specified mapped object reference. If an object
+     * was not provided, then we return the changeset for all objects.
+     * 
+     * If includeChildren is passed along with an obeject, then we fetch the changsets
+     * for all objects in the context, that have the provided object as a parent.
      * 
      * @param {object} obj The object to check for changes against.
      * @param {boolean} includeChildren Pass true to include child changesets.
      * @returns {object} An object with the properties that have changed on the current object.
      */
     ObjectContext.prototype.getChangeset = function(obj, includeChildren) {
-        if (!obj) {
-            throw ObjectContextException('Could not fetch changeset. Invalid object provided.');
-        }
+        var mappedObject = null;
         
-        var mappedObject = this._getMappedObject(obj);
+        if (obj) {
+            mappedObject = this._getMappedObject(obj);
 
-        if (!mappedObject) {
-            throw ObjectContextException('The object could not be found.');
+            if (!mappedObject) {
+                throw ObjectContextException('The object could not be found.');
+            }
         }
 
-        var fullChangeset = mappedObject.changeset;
+        var fullChangeset = mappedObject ? mappedObject.changeset : [];
 
-        if (includeChildren && !mappedObject.parent) {
+        if (!obj || (includeChildren && !mappedObject.parent)) {
             for (var i=0; i<this._objectMap.length; i++) {
                 var current = this._objectMap[i];
                 
-                if (current === mappedObject) {
-                    continue;
+                if (obj) {
+                    if (current === mappedObject) {
+                        continue;
+                    }
+                    else if (current.parent === mappedObject.current && current.changeset.length > 0) {
+                        fullChangeset = fullChangeset.concat(current.changeset);
+                    }
                 }
-                else if (current.parent === mappedObject.current && current.changeset.length > 0) {
+                else {
                     fullChangeset = fullChangeset.concat(current.changeset);
                 }
             }

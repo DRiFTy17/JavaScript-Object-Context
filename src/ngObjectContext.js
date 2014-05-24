@@ -335,7 +335,7 @@
      * @param {boolean} isStatusNew Whether or not this object should be added with a status of 'New' or not.
      */
     ObjectContext.prototype._addArray = function(ary, parent, isStatusNew) {
-        if (!ary instanceof Array) {
+        if (!(ary instanceof Array)) {
             throw ObjectContextException('An array must be specified.');
         }
         
@@ -440,20 +440,21 @@
     };
 
     /**	
-     * Removes an existing object from change tracking and all objects that are a
+     * Deletes an existing object from change tracking and all objects that are a
      * child of the provided object.
      * 
-     * @param {object} obj An object to remove.
-     * @param {boolean} hardRemove Whether or not to remove the object from the context, or just mark it for deletion.
+     * @param {object} obj An object to delete.
+     * @param {boolean} hardDelete Whether or not to remove the object from the context, or just mark it for deletion.
      */
-    ObjectContext.prototype.remove = function(obj, hardRemove) {
+    ObjectContext.prototype.delete = function(obj, hardDelete) {
         var index = this._getMapIndex(obj);
 
         if (index === null) {
             throw ObjectContextException('Object was not found. Removal failed.');
         }
 
-        if (hardRemove === true) {
+        // Are we removing the object or just marking it as deleted
+        if (hardDelete === true) {
             this._objectMap.splice(index, 1);
         }
         else {
@@ -469,7 +470,7 @@
             }
             
             if (currentObject.parent === obj) {
-                if (hardRemove === true) {
+                if (hardDelete === true) {
                     this._objectMap.splice(i, 1);
                 }
                 else {
@@ -699,7 +700,7 @@ console.log(this._objectMap);
      * Revert changes for all tracked objects back to their original state.
      */
     ObjectContext.prototype.revertAll = function() {
-        for (var i = 0; i < this._objectMap.length; i++) {
+        for (var i=0; i<this._objectMap.length; i++) {
             this._resetObject(this._objectMap[i]);
         }
 
@@ -720,7 +721,7 @@ console.log(this._objectMap);
         for (var i=0; i<obj.changeset.length; i++) {
             var property = obj.changeset[i].propertyName;
             
-            if (!obj.current[property] instanceof Array) {
+            if (!(obj.current[property] instanceof Array)) {
                 obj.current[property] = obj.original[property];
             }
             else {
@@ -759,86 +760,6 @@ console.log(this._objectMap);
     };
 
     /**
-     * Restores the provided mapped objects' current object value back to its
-     * original state.
-     * 
-     * @param {object} mappedObject The mapped object to restore.
-     */
-    ObjectContext.prototype._restoreOriginal = function(mappedObject) {
-        if (!mappedObject) {
-            throw ObjectContextException('Invalid object provided.');
-        }
-        
-        var obj = mappedObject.current;
-
-        // Loop over the original objects properties
-        for (var property in mappedObject.original) {
-            if (typeof obj[property] === 'function') {
-                continue;
-            }
-            
-            // Skip private/angular properties
-            if (property.toString().substring(0, 1) === '_' || property.toString().substring(0, 1) === '$') {
-                continue;
-            }
-            
-            // If this property doesn't exist on the current object, then it was removed so add it back in.
-            if (!mappedObject.original.hasOwnProperty(property) && !mappedObject.current.hasOwnProperty(property)) {
-                
-            }
-
-            // If the current value of this property is an array, then we need
-            // to empty it, and add all the original values back in. This will
-            // preserve the reference.
-            if (obj[property] instanceof Array) {
-                obj[property].length = 0;
-                Array.prototype.push.apply(obj[property], angular.copy(mappedObject.original[property]));
-            }
-        }
-    };
-
-    /**
-     * Returns the values of all properties in all objects to their original values.
-     * References are left alone, only values are reverted.
-     * 
-     * @param {obj} item The mapped object to return to its original state.
-     */
-    ObjectContext.prototype._revertProperties = function(item) {
-        if (!item) {
-            throw ObjectContextException('Invalid object provided.');
-        }
-
-        // If this object doesn't have anything in the changeset then there is nothing
-        // to revert to.
-        if (!item.changeset || item.changeset.length === 0) {
-            return;
-        }
-
-        // Loop over the changeset and revert the properties using the path to each property
-        for (var i=0; i<item.changeset.length; i++) {
-            var change = item.changeset[i];
-            var secondBracketPosition = change.indexOf(']');
-
-            try {
-                // This is here so we can add the "original" or "current" property text names
-                // to the paths of each property.
-                var objectMapIndexPath = change.substring(0, secondBracketPosition + 1);
-                var changePath = change.substring(secondBracketPosition + 1, change.length);
-
-                // Create the paths to the current and original properties
-                var currentProperty = this.stringFormat('this._objectMap{0}["current"]{1}', objectMapIndexPath, changePath);
-                var originalProperty = this.stringFormat('this._objectMap{0}["original"]{1}', objectMapIndexPath, changePath);
-
-                // Use eval to reset the path to the property since we support any level of properties in an object
-                eval(this.stringFormat('{0} = {1}', currentProperty, originalProperty));
-            } 
-            catch (e) {
-                console.log(e, 'Unable to evaluate current or original values. revertProperties() failed.');
-            }
-        }
-    };
-
-    /**
      * Determines if any of the tracked objects have any active changesets.
      * 
      * @returns {boolean} Determines whether or not the context has any objects with changes.
@@ -872,7 +793,7 @@ console.log(this._objectMap);
      */
     ObjectContext.prototype.getChangeset = function(obj) {
         if (!obj) {
-            throw ObjectContextException('Invalid object provided.');
+            throw ObjectContextException('Could not fetch changeset. Invalid object provided.');
         }
         
         var mappedObject = this._getMappedObject(obj);
@@ -1063,13 +984,19 @@ console.log(this._objectMap);
      * that previously had a status that was not equal to 'Unmodified', will now
      * have an 'Unmodified' status.
      * 
+     * If the object has a status of deleted, then the object will be removed 
+     * from the context.
+     * 
      * Objects that were unchanged are not touched.
      */
     ObjectContext.prototype.applyChanges = function() {
-        for (var i = 0; i < this._objectMap.length; i++) {
+        for (var i=this._objectMap.length-1; i>=0; i--) {
             var currentObject = this._objectMap[i];
 
-            if (currentObject.current._objectMeta.status !== this.ObjectStatus.Unmodified) {
+            if (currentObject.current._objectMeta.status === this.ObjectStatus.Deleted) {
+                this._objectMap.splice(i, 1);
+            }
+            else if (currentObject.current._objectMeta.status !== this.ObjectStatus.Unmodified) {
                 currentObject.changeset = [];
                 currentObject.current._objectMeta.status = this.ObjectStatus.Unmodified;
                 currentObject.original = angular.copy(currentObject.current);

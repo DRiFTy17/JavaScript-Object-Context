@@ -28,9 +28,12 @@
        * server and print out the changeset.
        */
       $scope.onApplyChanges = function() {
-        $scope.changeset = context.getChangeset($scope.person);
-        console.log($scope.changeset);
-        context.applyChanges();
+          if ($scope.person) {
+              $scope.changeset = context.getChangeset($scope.person);
+              console.log($scope.changeset);
+          }
+          
+          context.applyChanges();
       };
       
       /**
@@ -107,13 +110,13 @@
        * Removes the currently selected person from the context.
        */ 
       $scope.onRemove = function(object) {
-        context.remove(object, true);
+        context.delete(object);
         $scope.person = null;
       };
       
       $scope.onRemoveColor = function(color) {
           $scope.person.favoriteColors.splice($scope.person.favoriteColors.indexOf(color), 1);
-          context.remove(color);
+          context.delete(color);
       };
       
       /**

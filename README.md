@@ -18,7 +18,75 @@ To use this without Angular, just add a JavaScript object to the context, and ma
 
 ## Getting Started
 
-Coming soon...
+First, you must create an instance of the `ObjectContext`:
+
+```js
+var context = new ObjectContext();
+```
+
+If using Angular, use the `ngObjectContext` module, and you can configure and create the context:
+
+```js
+// Inject the module
+angular.module('demoApp', ['ngObjectContext']);
+
+// Configure the module
+angular.module('demoApp').config(['objectContextProvider', function(objectContextProvider) {
+  // To allow multiple instance of the context, call this method true. The default value is false.
+  objectContextProvider.allowMultipleInstances(true);
+}]);
+
+// Create an application-wide context during the run phase
+var context;
+angular.module('demoApp').run(['objectContext', function(objectContext) {
+  // There are two ways to create an instance
+  
+  // Call the create() function to create a new instance (if allow multiple instances is enabled)
+  // By passing true to this method a $digest watch will be created on the $rootScope (this is the default)
+  // If false is passed, then a $digest watch will not be created and the evaluate() function will need to be called
+  // manually
+  context = objectContext.create(true);
+  
+  // Second option
+  // This will get the current instance (if one already exists, otherwise it will call create()
+  context = objectContext.getInstance(true);
+}]);
+```
+
+Then add an object to the context and have it evaluated for changes:
+
+```js
+var person = {
+  name: 'Joe',
+  favoriteSport: {name: 'Disc Golf'},
+  favoriteColors: [{color: 'Red'}, {color: 'Blue'}]
+};
+
+// This will add an object with an 'Unmodified' state
+context.add(person);
+
+// This will add an object with a 'New' state
+context.add(person, true);
+```
+
+Make a change to the object and call `evaluate()` to see what has changed:
+
+```js
+// Change the name property
+person.name = 'Joe is awesome';
+
+// Evaluate all objects for changes (this can be configured to be called automatically if using Angular)
+context.evaluate();
+
+// Returns the changed properties on this object
+context.getChangeset(person);
+
+// Tests to see if any objects in the context have changes
+context.hasChanges();
+
+// To determine if just this object has changes, call `hasChanges()` and pass the object
+context.hasChanges(person);
+```
 
 ## API Documentation
 * **`object` evaluate()**
@@ -65,10 +133,11 @@ Coming soon...
   - `returns` `object` A reference to `this` for chaining.
   - `throws` Errorif the provided object doesn't exist.
 
-* **`boolean` hasChanges()**
+* **`boolean` hasChanges([obj])**
 
-  Determines if any of the tracked objects in the context have any active changesets or are marked as 'New', 'Modified', or   'Deleted'.
+  Determines if any of the tracked objects in the context have any active changesets or are marked as 'New', 'Modified', or   'Deleted'. If an object is passed, then just that object will be tested for changes.
   
+  - `parameter` `object` `obj` An existing context object to test for changes.
   - `returns` `boolean` True if changes exist, false otherwise.
 
 * **`boolean` hasChildChanges(obj)**

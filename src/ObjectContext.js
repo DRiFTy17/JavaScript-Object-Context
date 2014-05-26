@@ -108,6 +108,8 @@ ObjectContext.prototype.add = function(obj, rootParent, parent, isStatusNew) {
 
     this._objectMap.push(this._createMappedObject(obj, rootParent, parent));
     this._addChildren(obj, rootParent, isStatusNew);
+    
+    return this;
 };
 
 /**
@@ -712,11 +714,11 @@ ObjectContext.prototype.getChangeset = function(obj, includeChildren) {
  * 
  * @returns {array} An Array of objects that exists in the context.
  */
-ObjectContext.prototype.getObjects = function() {
+ObjectContext.prototype.getObjects = function(returnMappedObjects) {
     var objects = [];
 
     for (var i = 0; i < this._objectMap.length; i++) {
-        objects.push(this._objectMap[i].current);
+        objects.push(returnMappedObjects ? this._objectMap[i] : this._objectMap[i].current);
     }
 
     return objects;

@@ -71,8 +71,8 @@
                         <hr/>
                         
                         <p class="form-group">
-                            <label>Object Status:</label> 
-                            <span>{{getObjectStatus()}}</span>
+                            <label>Has Child Changes:</label> 
+                            <span>{{hasChildChanges()}}</span>
                         </p>
                         
                         <div class="form-group">
@@ -94,7 +94,7 @@
                             <label>Favorite Colors (array of objects):</label>
                             <table class="table table-bordered">
                                 <tbody>
-                                    <tr ng-repeat="color in person.favoriteColors">
+                                    <tr ng-repeat="color in person.favoriteColors" ng-if="color._objectMeta.status != 'Deleted'">
                                         <td style="text-align: center; vertical-align: middle; font-weight: bold;">{{$index+1}}</td>
                                         <td>
                                             <input type="text" class="form-control" ng-model="color.name" />  
@@ -116,6 +116,8 @@
         <script src="js/app.js"></script>
         <script src="js/Person.js"></script>
         <script src="js/demoCtrl.js"></script>
+        <script src="../src/ObjectContext.js"></script>
         <script src="../src/ngObjectContext.js"></script>
+        <!--<script src="../build/ngObjectContext.min.js"></script>-->
     </body>
 </html>

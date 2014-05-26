@@ -2,7 +2,7 @@
   'use strict';
   
   angular.module('demoApp').controller('demoCtrl', 
-    ['$scope', 'objectContext', 
+    ['$scope', 'objectContext',
     function($scope, objectContext) {
       // Get/create an instance of the object context
       var context = objectContext.getInstance();
@@ -39,6 +39,10 @@
           }
 
           context.applyChanges();
+          if (!context.doesObjectExist($scope.person)) {
+              $scope.person = null;
+          }
+          context.log();
       };
       
       /**
@@ -88,9 +92,11 @@
        * Loads an object of type Person from the server and adds it to the context.
        */
       $scope.onLoad = function() {
-          context.get('Person', {id: 1}).then(function(person) {
-            $scope.person = person;
-          });
+          var newPerson = new Person(new Date().getTime(), "Brad", 51);
+          newPerson._objectMeta.status = ObjectContext.ObjectStatus.New;
+          context.add(newPerson);
+          
+          $scope.person = newPerson;
       };
       
       /**
@@ -117,8 +123,7 @@
       };
       
       $scope.onRemoveColor = function(color) {
-          $scope.person.favoriteColors.splice($scope.person.favoriteColors.indexOf(color), 1);
-          context.deleteObject(color, true);
+          context.deleteObject(color);
       };
       
       /**
@@ -136,7 +141,12 @@
         if (!$scope.person) return; 
         $scope.person.favoriteColors.push({name: 'Gold'});
         context.evaluate();
-      }
+      };
+      
+      $scope.hasChildChanges = function() {
+          if (!$scope.person) return '';
+          return context.hasChildChanges($scope.person);
+      };
     }
   ]);
 })();

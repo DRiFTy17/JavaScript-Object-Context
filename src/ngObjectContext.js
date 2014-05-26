@@ -1,1159 +1,156 @@
-(function() {
-    'use strict';
+'use strict';
+
+/**
+ * An AngularJS object context/change tracking module.
+ * 
+ * This module can be used to load a JavaScipt object, that will be watched
+ * for changes. 
+ * 
+ * It can be configured to only allow a single instance of the context, or 
+ * multiple contexts can exists in a single application if need be.
+ * 
+ * To enable GET and POST requests for fetching/saving objects from/to the
+ * server, just pass a valid URI to send the requests to.
+ */
+angular.module('ngObjectContext', []).provider('objectContext', function() {
 
     /**
-     * An AngularJS object context/change tracking module.
+     * This flag allows the context to be configured to only allow one instance
+     * if set to true.
      * 
-     * This module can be used to load a JavaScipt object, that will be watched
-     * for changes. 
-     * 
-     * It can be configured to only allow a single instance of the context, or 
-     * multiple contexts can exists in a single application if need be.
-     * 
-     * To enable GET and POST requests for fetching/saving objects from/to the
-     * server, just pass a valid URI to send the requests to.
+     * @private
      */
-    angular.module('ngObjectContext', []).provider('objectContext', function() {
-
-        /**
-         * This flag allows the context to be configured to only allow one instance
-         * if set to true.
-         * 
-         * @private
-         */
-        var _isSingleton = true;
-
-        /**
-         * This will hold the one singleton instance of this class if '_isSingleton'
-         * is set to true.
-         * 
-         * @private
-         */
-        var _instance = null;
-
-        /**
-         * The endpoint URI to point to when invoking submit/load requests.
-         * 
-         * @private
-         */
-        var _endpointUri = null;
-
-        /**
-         * Call this with true to restrict the context creation to one instance. If
-         * set false is passed (the default value) then any calls to create a new
-         * context, will generate a new instance.
-         * 
-         * @public
-         */
-        this.restrictToSingleContext = function(restrict) {
-            _isSingleton = restrict;
-        };
-
-        /**
-         * This is the endpoint that is used when sending requests to the server.
-         * 
-         * @public
-         */
-        this.setEndpointUri = function(uri) {
-            _endpointUri = uri.trim();
-        };
-
-        /**
-         * The domain context factory function.
-         */
-        this.$get = ['$rootScope', '$q', '$http',
-            function($rootScope, $q, $http) {
-
-                return {
-                    /**
-                     * Creates a new ObjectContext instance. If true is passed, then a $digest
-                     * watch is created, and any digest calls will evaluate our tracked objects
-                     * for changes.
-                     *
-                     * If we were configured to only one instance of a context, then that will
-                     * be returned if it exists.
-                     * 
-                     * @param {boolean=} evalOnDigest Optional value that determines whether or not the context will automatically watch for changes.
-                     */
-                    create: function(evalOnDigest) {
-                        evalOnDigest = typeof evalOnDigest !== 'undefined' ? !!evalOnDigest : true;
-                        
-                        if (_isSingleton) {
-                            _instance = _instance || new ObjectContext($rootScope, $q, $http, evalOnDigest, _endpointUri);
-                            return _instance;
-                        }
-
-                        return new ObjectContext($rootScope, $q, $http, evalOnDigest, _endpointUri);
-                    },
-                    /**
-                     * Returns a ObjectContext instance. If we are set to only allow
-                     * a single instance, that instance will be returned. Otherwise,
-                     * a new instance will be created and returned.
-                     *
-                     * The default value for evalOnDigest is true.
-                     * 
-                     * @param {boolean=} evalOnDigest Optional value that determines whether or not the context will automatically watch for changes.
-                     */
-                    getInstance: function(evalOnDigest) {
-                        evalOnDigest = typeof evalOnDigest !== 'undefined' ? !!evalOnDigest : true;
-                        return _instance || this.create(evalOnDigest);
-                    }
-                };
-
-            }
-        ];
-
-    });
+    var _isSingleton = true;
 
     /**
-     * A generic exception that takes in a custom error message. 
-     *
-     * @param {string} message The error message to display.
+     * This will hold the one singleton instance of this class if '_isSingleton'
+     * is set to true.
+     * 
+     * @private
      */
-    function ObjectContextException(message) {
-        return ObjectContext.prototype.stringFormat('{0}: {1}', 'ObjectContextException', message);
-    }
+    var _instance = null;
 
     /**
-     * Creates a new instance of an ObjectContext.
+     * Call this with true to allow multiple instances of the ObjectContext
+     * to be created when called through this service.
      * 
-     * @constructor 
-     * @param {object} rootScope A reference to the AngularJS $rootScope service.
-     * @param {object} q A reference to the AngularJS $q service.
-     * @param {object} http A reference to the AngularJS $http service.
-     * @param {boolean} evalOnDigest Whether or not to evaluate changes when the AngularJS $digest loop runs.
-     * @param {string} uri A URI to map HTTP requests to.
+     * @public
      */
-    function ObjectContext(rootScope, q, http, evalOnDigest, uri) {
-        var self = this;
-
-        /**
-         * The available object types for loaded objects.
-         * 
-         * @public
-         */
-        this.ObjectStatus = {
-            New: 'New',
-            Unmodified: 'Unmodified',
-            Modified: 'Modified',
-            Deleted: 'Deleted'
-        };
-
-        /**
-         * This is a flag that can be queried and used to know if an async request
-         * operation is currently in progress.
-         * 
-         * @public
-         */
-        this.isLoading = false;
-
-        /**
-         * A flag that can be queried and used to know if an async submit operation is in progress
-         * 
-         * @public
-         */
-        this.isSubmitting = false;
-
-        /**
-         * The URI to request when executing requests to the server.
-         * 
-         * @private
-         */
-        this._endpointUri = uri;
-
-        /**
-         * A reference to the Angular $rootScope so we can add digest watches.
-         * 
-         * @private
-         */
-        this._rootScope = rootScope;
-
-        /**
-         * A reference to the Angular $q service for promises.
-         * 
-         * @private
-         */
-        this._q = q;
-
-        /**
-         * A reference to the Angular $http service for HTTP requests.
-         * 
-         * @private
-         */
-        this._http = http;
-
-        /**
-         * This stores the tracked objects.
-         * 
-         * @private
-         */
-        this._objectMap = [];
-
-        /**
-         * A collection of change listeners that are subscribed to listen for changes.
-         * 
-         * @private
-         */
-        this._changeListeners = [];
-
-        /**
-         * This is used to tell our digest watcher if it should call evaluate whenever
-         * that event occurs.
-         * 
-         * @private
-         */
-        this._autoEvaluate = !! evalOnDigest;
-
-        /**
-         * Watch for calls to $digest. When that occurs, we need to evaluate our
-         * tracked objects for changes.
-         * 
-         * @private
-         */
-        this._offDigestWatch = null;
-
-        // Check to see if we need to set up a digest watch now
-        if (this._autoEvaluate) {
-            this._offDigestWatch = this._rootScope.$watch(function() {
-                if (self._autoEvaluate && self._objectMap.length > 0) {
-                    self.evaluate();
-                }
-            });
-        }
-    }
-
-    /**
-     * Subcribes the passed listener function that will be invoked when a change has occured.
-     * 
-     * @param {function} listener A function to invoke when a change occurs to any objects in the context.
-     */
-    ObjectContext.prototype.subscribeChangeListener = function(listener) {
-        if (typeof listener !== 'function') {
-            throw ObjectContextException('The provided listener must be a function callback.');
-        }
-        
-        this._changeListeners.push(listener);
+    this.allowMultipleInstances = function(allow) {
+        _isSingleton = !allow;
     };
 
     /**
-     * Unsubscribes the provided change listener.
-     * 
-     * @param {function} listener A function reference to unsubscribe.
+     * The domain context factory function.
      */
-    ObjectContext.prototype.unsubscribeChangeListener = function(listener) {
-        if (this._changeListeners.indexOf(listener) < 0) {
-            throw ObjectContextException('The provided listener function was not subscribed.');
-        }
-        
-        this._changeListeners.splice(this._changeListeners.indexOf(listener), 1);
-    };
-
-    /**
-     * Adds an object to the context. Any changes to the properties on this object
-     * will trigger the context to have changes and notify any subscribers.
-     *
-     * This method wraps the passed in object in an object that we can work with. The
-     * passed in object will be copied so we can store its original state.
-     *
-     * If a meta property does not exist on the object then one will be added to it.
-     *
-     * Any changes that are made to this object can be seen by querying the changeset
-     * property.
-     * 
-     * @param {object} obj An object to add to the context that will be tracked for changes.
-     * @param {object} rootParent The root parent of obj.
-     * @param {boolean} isStatusNew Whether or not this object should be added with a status of 'New' or not.
-     */
-    ObjectContext.prototype.add = function(obj, rootParent, parent, isStatusNew) {
-        // Restrict passed in values to be an object
-        if (typeof obj !== 'object' || obj instanceof Array) {
-            throw ObjectContextException('Invalid object specified. The value provided must be of type "object".');
-        }
-        
-        if (this._doesObjectExist(obj)) {
-            throw ObjectContextException('Object already exists in the context.');
-        }
-
-        if (!obj._objectMeta) {
-            obj._objectMeta = {
-                status: isStatusNew ? this.ObjectStatus.New : this.ObjectStatus.Unmodified,
-                type: 'Object'
-            };
-        } 
-        else if (!obj._objectMeta.status) {
-            obj._objectMeta.status = this.ObjectStatus.Unmodified;
-        }
-        else if (!obj._objectMeta.type) {
-            obj._objectMeta.type = 'Object';
-        }
-        else if (obj._objectMeta && obj._objectMeta.status && obj._objectMeta.status === this.ObjectStatus.New) {
-            isStatusNew = true;
-        }
-        
-        if (obj._objectMeta.status !== this.ObjectStatus.New &&
-            obj._objectMeta.status !== this.ObjectStatus.Unmodified &&
-            obj._objectMeta.status !== this.ObjectStatus.Modified &&
-            obj._objectMeta.status !== this.ObjectStatus.Deleted) {
-            throw ObjectContextException(this.stringFormat('Invalid object status: {0}', obj._objectMeta.status));
-        }
-
-        this._objectMap.push(this._createMappedObject(obj, rootParent, parent));
-        this._addChildren(obj, rootParent, isStatusNew);
-    };
-
-    /**
-     * Find any children on the provided object that can be added to context.
-     * 
-     * @param {object} obj
-     * @param {object} rootParent
-     * @param {boolean} isStatusNew Whether or not this object should be added with a status of 'New' or not.
-     */
-    ObjectContext.prototype._addChildren = function(obj, rootParent, isStatusNew) {
-        // Check to see if there are any child objects that need to be added to
-        // the context. This includes arrays of objects as well.
-        for (var property in obj) {
-            if (!this._isTrackableProperty(obj, property)) {
-                continue;
-            }
-            
-            if (obj[property] instanceof Array) {
-                this._addArray(obj[property], rootParent || obj, isStatusNew);
-            }
-            else if (typeof obj[property] === 'object') {
-                if (this._doesObjectExist(obj[property])) {
-                    continue;
-                }
-                
-                this.add(obj[property], rootParent || obj, obj, isStatusNew);
-            }
-        }
-    };
-
-    /**
-     * Takes the pased array and adds each of its elements to the the context.
-     * 
-     * If an element is an array, it will recurse.
-     * 
-     * @param {array} ary The array to add to the context.
-     * @param {object} rootParent The root parent of this array.
-     * @param {boolean} isStatusNew Whether or not this object should be added with a status of 'New' or not.
-     */
-    ObjectContext.prototype._addArray = function(ary, rootParent, isStatusNew) {
-        if (!(ary instanceof Array)) {
-            throw ObjectContextException('An array must be specified.');
-        }
-        
-        for (var i=0; i<ary.length; i++) {
-            if (typeof ary[i] === 'function') {
-                continue;
-            }
-            
-            if (ary[i] instanceof Array) {
-                this._addArray(ary[i], rootParent, isStatusNew);
-            }
-            else if (typeof ary[i] === 'object') {
-                if (this._doesObjectExist(ary[i])) {
-                    continue;
-                }
-                
-                this.add(ary[i], rootParent, ary, isStatusNew);
-            }
-            else {
-                throw ObjectContextException(this.stringFormat('Invalid array item type found ("{0}") at index {1}.', typeof ary[i], i));
-            }
-        }
-    };
-
-    /**
-     * Determines if the passed property exists on the object, is not a function,
-     * and doesn't start with a reserved character. If all of those are false, then
-     * the property can be tracked.
-     * 
-     * @param {object} obj The object to check the property against.
-     * @param {string} property The property to check.
-     * @returns {boolean} True if the property can be tracked, false otherwise.
-     */
-    ObjectContext.prototype._isTrackableProperty = function(obj, property) {
-        if (!obj.hasOwnProperty(property) || 
-            typeof obj[property] === 'function' ||
-            property.toString().substring(0, 1) === '_' || 
-            property.toString().substring(0, 1) === '$') {
-            return false;
-        }
-        
-        return true;
-    };
-
-    /**
-     * A helper function to create a mapped context object.
-     * 
-     * This will wrap the passed in object, and add any necessary properties to 
-     * aid in the change tracking process.
-     * 
-     * @param {object} obj An object to wrap.
-     */
-    ObjectContext.prototype._createMappedObject = function(obj, rootParent, parent) {
-        var self = this;
-        
-        return {
+    this.$get = ['$rootScope',
+        function($rootScope) {
             /**
-             * The current state of the object.
-             */
-            current: obj,
-            /**
-             * A copy of the object in its unchanged state.
-             */
-            original: angular.copy(obj),
-            /**
-             * Returns whether or not the current object has changes from its
-             * original state.
+             * An array holding registered $digest watchers and the context 
+             * instance they are registered to.
              * 
-             * @returns {boolean} True if the object has changes from its original state, false otherwise.
+             * @type Array
+             * @private
              */
-            hasChanges: function() {
-                return this.changeset.length > 0 ||
-                       this.current._objectMeta.status === self.ObjectStatus.New ||
-                       this.current._objectMeta.status === self.ObjectStatus.Modified ||
-                       this.current._objectMeta.status === self.ObjectStatus.Deleted;
-            },
-            /**
-             * An array holding the changes to the current object.
-             */
-            changeset: [],
-            /**
-             * A reference to the root object that this object is a child of.
-             * If this is the parent, then the value is null.
-             */
-            rootParent: rootParent,
-            /**
-             * A reference to the direct parent object of this object.
-             */
-            parent: parent
-        };
-    };
+            var digestWatchers = [];
 
-    /**
-     * Checks to see if the provided object has already been added to the context.
-     * 
-     * @param {object} objectReference An object to test for existance.
-     */
-    ObjectContext.prototype._doesObjectExist = function(objectReference) {
-        for (var i = 0; i < this._objectMap.length; i++) {
-            if (this._objectMap[i].current === objectReference) {
-                return true;
-            }
-        }
+            return {
+                /**
+                 * Creates a new ObjectContext instance. If true is passed, then a $digest
+                 * watch is created, and any digest calls will evaluate our tracked objects
+                 * for changes.
+                 *
+                 * If we were configured to only one instance of a context, then that will
+                 * be returned if it exists.
+                 * 
+                 * @param {boolean} evalOnDigest Optional value that determines whether or not the context will automatically watch for changes.
+                 */
+                create: function(canEvalOnDigest) {
+                    canEvalOnDigest = typeof canEvalOnDigest !== 'undefined' ? !!canEvalOnDigest : true;
 
-        return false;
-    };
-
-    /**	
-     * Deletes an existing object from change tracking and all objects that are a
-     * child of the provided object.
-     * 
-     * @param {object} obj An object to delete.
-     * @param {boolean} hardDelete Whether or not to remove the object from the context, or just mark it for deletion.
-     */
-    ObjectContext.prototype.deleteObject = function(obj, hardDelete) {
-        var index = this._getMapIndex(obj);
-
-        if (index === null) {
-            throw ObjectContextException('Object was not found. Removal failed.');
-        }
-
-        // If this object has a status of new (then just remove the object completely)
-        // along with any of its children.
-        if (this._objectMap[index].current._objectMeta.status === this.ObjectStatus.New) {
-            hardDelete = true;
-        }
-
-        // Are we removing the object or just marking it as deleted
-        if (hardDelete === true) {
-            this._objectMap.splice(index, 1);
-        }
-        else if (this._objectMap[index].current._objectMeta.status !== this.ObjectStatus.New) {
-            this._objectMap[index].current._objectMeta.status = this.ObjectStatus.Deleted;
-        }
-
-        // Remove all objects that are a child of this object
-        for (var i=this._objectMap.length-1; i>=0; i--) {
-            var currentObject = this._objectMap[i];
-            
-            if (currentObject.current === obj) {
-                continue;
-            }
-            
-            if (currentObject.rootParent === obj) {
-                if (hardDelete === true) {
-                    this._objectMap.splice(i, 1);
+                    if (_isSingleton) {
+                        if (!_instance) {
+                            _instance = new ObjectContext();
+                            
+                            if (canEvalOnDigest) {
+                                digestWatchers.push({
+                                    contextInstance: _instance,
+                                    deregisterWatchFn: $rootScope.$watch(function() { _instance.evaluate() })
+                                });
+                            }
+                        }
+                    }
+                    else {
+                        var context = new ObjectContext();
+                        
+                        if (canEvalOnDigest) {
+                            digestWatchers.push({
+                                contextInstance: context,
+                                deregisterWatchFn: $rootScope.$watch(function() { _instance.evaluate() })
+                            });
+                        }
+                        
+                        return context;
+                    }
+                    
+                    return _instance;
+                },
+                /**
+                 * Returns a ObjectContext instance. If we are set to only allow
+                 * a single instance, that instance will be returned. Otherwise,
+                 * a new instance will be created and returned.
+                 *
+                 * The default value for evalOnDigest is true.
+                 * 
+                 * @param {boolean=} evalOnDigest Optional value that determines whether or not the context will automatically watch for changes.
+                 */
+                getInstance: function(canEvalOnDigest) {
+                    canEvalOnDigest = typeof canEvalOnDigest !== 'undefined' ? !!canEvalOnDigest : true;
+                    return _instance || this.create(canEvalOnDigest);
+                },
+                /**
+                 * Searchs the array of registered $digest watcher entries, and 
+                 * will deregister the one that is tied to the current context.
+                 * 
+                 * @param {object} contextInstance An ObjectContext instance.
+                 */
+                stopAutoWatch: function(contextInstance) {
+                    for (var i=digestWatchers.length-1; i>=0; i--) {
+                        if (digestWatchers[i].contextInstance === contextInstance && digestWatchers[i].deregisterWatchFn) {
+                            digestWatchers[i].deregisterWatchFn();
+                            digestWatchers.splice(i, 1);
+                        }
+                    }
+                },
+                /**
+                 * Register a $digest listener for this context, and attach the 
+                 * ObjectContext.evaluate() function to it.
+                 * 
+                 * @param {object} contextInstance An ObjectContext instance.
+                 */
+                startAutoWatch: function(contextInstance) {
+                    if (!contextInstance) {
+                        throw new Error('Invalid context instance specified.');
+                    }
+                    
+                    var entryExists = false;
+                    
+                    for (var i=0; i<digestWatchers.length; i++) {
+                        if (digestWatchers[i].contextInstance === contextInstance) {
+                            entryExists = true;
+                        }
+                    }
+                    
+                    if (!entryExists && contextInstance.evaluate) {
+                        digestWatchers.push({
+                            contextInstance: contextInstance,
+                            deregisterWatchFn: $rootScope.$watch(function() { contextInstance.evaluate() })
+                        });
+                    }
                 }
-                else if (currentObject.current._objectMeta.status !== this.ObjectStatus.New) {
-                    currentObject.current._objectMeta.status = this.ObjectStatus.Deleted;
-                }
-            }
+            };
+
         }
-
-        this.evaluate();
-    };
-
-    /**	
-     * Removes all existing objects from the context.
-     * 
-     * @param {boolean} hardRemove Whether or not to remove all objects from the context, or just mark them for deletion.
-     */
-    ObjectContext.prototype.removeAll = function(hardRemove) {
-        if (hardRemove === true) {
-            this._objectMap = [];
-        }
-        else {
-            for (var i=0; i<this._objectMap.length; i++) {
-                this._objectMap[i].current._objectMeta.status = this.ObjectStatus.Deleted;
-            }
-        }
-        
-        this.evaluate();
-    };
-
-    /**
-     * Returns the index of an existing object in the object map.
-     * 
-     * @param {object} obj An existing object to search for.
-     */
-    ObjectContext.prototype._getMapIndex = function(obj) {
-        for (var i=0; i<this._objectMap.length; i++) {
-            if (this._objectMap[i].current === obj) {
-                return i;
-            }
-        }
-
-        return null;
-    };
-
-    /**
-     * Returns a copy of the original unchanged object in the state that it was in 
-     * when it was either added or last saved. 
-     * 
-     * If the object is not found then null is returned.
-     * 
-     * @param {object} objectReference The object to search for.
-     * @returns {object|null} A copy of the original object, or null if not found.
-     */
-    ObjectContext.prototype.getOriginal = function(objectReference) {
-        for (var i = 0; i < this._objectMap.length; i++) {
-            if (this._objectMap[i].current === objectReference) {
-                return angular.copy(obj.original);
-            }
-        }
-
-        return null;
-    };
-
-    /**
-     * Returns the mapped object instance using the provided object reference.
-     * 
-     * @param {object} obj The object to search for.
-     * @returns {object} A mapped object.
-     */
-    ObjectContext.prototype._getMappedObject = function(obj) {
-        var mappedObjectIndex = this._getMapIndex(obj);
-
-        if (mappedObjectIndex === null) {
-            throw ObjectContextException(this.stringFormat('Invalid object index: {0}', mappedObjectIndex));
-        }
-
-        return this._objectMap[mappedObjectIndex];
-    };
-
-    /**
-     * Gets an object status for the specified object reference.
-     * 
-     * @param {object} obj The object to search for.
-     * @returns {string} The status of the requested object.
-     */
-    ObjectContext.prototype.getObjectStatus = function(obj) {
-        if (!obj) {
-            throw ObjectContextException('Invalid object provided.');
-        }
-
-        var mappedObjectIndex = this._getMapIndex(obj);
-
-        if (mappedObjectIndex === null) {
-            throw ObjectContextException(this.stringFormat('Invalid object index: {0}', mappedObjectIndex));
-        }
-
-        return this._objectMap[mappedObjectIndex].current._objectMeta.status;
-    };
-
-    /**
-     * This is the change tracking engine.
-     *
-     * Checks if any of the property values in each of the tracked objects have any changes.
-     *
-     * Will recursively evaluate child properties that are arrays/objects themselves.
-     */
-    ObjectContext.prototype.evaluate = function() {        
-        // Loop through each of the objects currently loaded, and evaluate them for
-        // changes. If the object is marked as deleted/new, then it will be skipped as 
-        // we already know that there are changes.
-        for (var i=0; i<this._objectMap.length; i++) {
-            var mappedObj = this._objectMap[i];
-
-            // If the object is marked as deleted then we can skip it
-            if (mappedObj.current._objectMeta.status === this.ObjectStatus.Deleted) {
-                continue;
-            }
-
-            // First we need to check if there are any new objects to add from 
-            // any arrays within the hierarchy of the currently mapped
-            this._addChildren(mappedObj.current, mappedObj.rootParent, true);
-
-            this._checkForChanges(mappedObj);
-        }
-
-        // Now that the evaluate loop has finished, call any change listeners subscribed to us
-        for (var x = 0; x < this._changeListeners.length; x++) {
-            var listener = this._changeListeners[x];
-
-            if (listener && typeof listener === 'function') {
-                listener(this.hasChanges());
-            }
-        }
-    };
+    ];
     
-    /**
-     * Checks to see if this mapped object has any properties in the current 
-     * object that have changed from the original.
-     * 
-     * Any functions/private properties are skipped. Any object/arrays are skipped
-     * because those will be evaluated at a later time.
-     * 
-     * @param {object} obj The mapped object to evaluate for changes.
-     */
-    ObjectContext.prototype._checkForChanges = function(obj) {
-        for (var property in obj.current) {
-            // Skip private/angular/array/object properties
-            if (!this._isTrackableProperty(obj.current, property)) {
-                continue;
-            }
-
-            // If this property is an array then check to see if the length has changed.
-            // Otherwise just compare the properties values
-            if (obj.current[property] instanceof Array) {
-                if (!(obj.original[property] instanceof Array)) {
-                    throw ObjectContextException('Property type ("Array") has been modified from the original type.');
-                }
-                
-                if (obj.current[property].length !== obj.original[property].length) {
-                    this._setPropertyChanged(obj, property);
-                }
-            }
-            else if (typeof obj.current[property] !== 'object' && obj.current[property] !== obj.original[property]) {
-                this._setPropertyChanged(obj, property);
-            }
-        }
-    };
-
-    /**
-     * Adds an object to the changeset if it doesn't already exist. If it does
-     * exist then it the current value on that changeset record is updated with
-     * the new current value.
-     * 
-     * @param {object} obj The mapped object to update.
-     * @param {string} property The property that was changed.
-     */
-    ObjectContext.prototype._setPropertyChanged = function(obj, property) {
-        // Check if this property has already been added to the changeset
-        var existingChangeEntry = null;
-        for (var i=0; i<obj.changeset.length; i++) {
-            if (obj.changeset[i].propertyName === property.toString()) {
-                existingChangeEntry = obj.changeset[i];
-                break;
-            }
-        }
-
-        if (existingChangeEntry !== null) {
-            // Update the existing changeset entry current value
-            existingChangeEntry.currentValue = obj.current[property];
-        }
-        else {
-            // Add a new changeset entry
-            obj.changeset.push({
-                propertyName: property.toString(),
-                originalValue: obj.original[property],
-                currentValue: obj.current[property],
-                object: obj.current
-            });
-
-            // Update the object status to modified only if it is currently unmodified
-            if (obj.current._objectMeta.status === this.ObjectStatus.Unmodified) {
-                obj.current._objectMeta.status = this.ObjectStatus.Modified;
-            }
-        }
-    };
-
-    /**
-     * Revert changes for one specific object back to its original state.
-     * 
-     * @param {object} obj The object that we are reverting the changes for.
-     */
-    ObjectContext.prototype.revert = function(obj) {
-        if (!obj) {
-            throw ObjectContextException('Invalid object provided.');
-        }
-        
-        var itemIndex = this._getMapIndex(obj);
-
-        if (itemIndex === null) {
-            throw ObjectContextException('Could not determine object index. Revert changes failed.');
-        }
-
-        this._resetObject(this._objectMap[itemIndex]);
-        this.evaluate();
-    };
-
-    /**
-     * Revert changes for all tracked objects back to their original state.
-     */
-    ObjectContext.prototype.revertAll = function() {
-        for (var i=0; i<this._objectMap.length; i++) {
-            this._resetObject(this._objectMap[i]);
-        }
-
-        this.evaluate();
-    };
-
-    /**
-     * Removes any changes to a loaded object and reverts it to its unchanged state.
-     * 
-     * @param {object} obj The mapped to reset.
-     */
-    ObjectContext.prototype._resetObject = function(obj) {
-        if (!obj) {
-            throw ObjectContextException('Invalid object provided.');
-        }
-
-        // Revert all the changes in the changeset for this object back their original values
-        for (var i=0; i<obj.changeset.length; i++) {
-            var property = obj.changeset[i].propertyName;
-            
-            if (!(obj.current[property] instanceof Array)) {
-                obj.current[property] = obj.original[property];
-            }
-            else {
-                for (var x=obj.current[property].length-1; x>=0; x--) {
-                    if (obj.current[property][x]._objectMeta.status === this.ObjectStatus.New) {
-                        obj.current[property].splice(x, 1);
-                    }
-                }
-            }
-        }
-        
-        obj.current._objectMeta.status = obj.original._objectMeta.status;
-        obj.changeset = [];
-        
-        // Now check for any objects that are a child of this object (if it is a parent)
-        if (!obj.rootParent) {
-            for (var j=this._objectMap.length-1; j>=0; j--) {
-                var currentObject = this._objectMap[j];
-                
-                if (currentObject === obj) {
-                    continue;
-                }
-                
-                if (currentObject.current._objectMeta.status === this.ObjectStatus.New) {
-                    continue;
-                }
-                else if (currentObject.current._objectMeta.status === this.ObjectStatus.Deleted) {
-                    currentObject.current._objectMeta.status = currentObject.original._objectMeta.status;
-                }
-                else if (currentObject.rootParent === obj.current) {
-                    this._resetObject(currentObject);
-                }
-            }
-        }
-    };
-
-    /**
-     * Determines if any of the tracked objects have any active changesets.
-     * 
-     * @returns {boolean} Determines whether or not the context has any objects with changes.
-     */
-    ObjectContext.prototype.hasChanges = function() {
-        for (var i=0; i<this._objectMap.length; i++) {
-            if (this._objectMap[i].hasChanges()) {
-                return true;
-            }
-        }
-
-        return false;
-    };
-
-    /**
-     * Removes all currently tracked objects and resets the state of the context.
-     *
-     * This will usually be called when the state of the application is being destroyed,
-     * and any object that are laoded into the context are no longer relevant.
-     */
-    ObjectContext.prototype.clear = function() {
-        this._objectMap = [];
-        this._changeListeners = [];
-    };
-
-    /**
-     * Returns the changeset for a specified mapped object reference. If an object
-     * was not provided, then we return the changeset for all objects.
-     * 
-     * If includeChildren is passed along with an obeject, then we fetch the changsets
-     * for all objects in the context, that have the provided object as a parent.
-     * 
-     * @param {object} obj The object to check for changes against.
-     * @param {boolean} includeChildren Pass true to include child changesets.
-     * @returns {object} An object with the properties that have changed on the current object.
-     */
-    ObjectContext.prototype.getChangeset = function(obj, includeChildren) {
-        var mappedObject = null;
-        
-        if (obj) {
-            mappedObject = this._getMappedObject(obj);
-
-            if (!mappedObject) {
-                throw ObjectContextException('The object could not be found.');
-            }
-        }
-
-        var fullChangeset = mappedObject ? mappedObject.changeset : [];
-
-        if (!obj || (includeChildren && !mappedObject.rootParent)) {
-            for (var i=0; i<this._objectMap.length; i++) {
-                var current = this._objectMap[i];
-                
-                if (obj) {
-                    if (current === mappedObject) {
-                        continue;
-                    }
-                    else if (current.rootParent === mappedObject.current && current.changeset.length > 0) {
-                        fullChangeset = fullChangeset.concat(current.changeset);
-                    }
-                }
-                else {
-                    fullChangeset = fullChangeset.concat(current.changeset);
-                }
-            }
-        }
-
-        return fullChangeset;
-    };
-
-    /**
-     * Used for turning on and off automatic change tracking if set to true.
-     * 
-     * @param {boolean} canEval True or false value to turn on auto evaluating or not.
-     */
-    ObjectContext.prototype.setAutoEvaluate = function(canEval) {
-        var self = this;
-        this._autoEvaluate = !!canEval;
-
-        if (this._autoEvaluate && this._offDigestWatch === null) {
-            this._offDigestWatch = this._rootScope.$watch(function() {
-                if (self._autoEvaluate && self._objectMap.length > 0) {
-                    self.evaluate();
-                }
-            });
-        } 
-        else if (!this._autoEvaluate && this._offDigestWatch) {
-            this._offDigestWatch();
-            this._offDigestWatch = null;
-        }
-    };
-
-    /**
-     * Sends a GET request to the server using the configured endpoint URI.
-     * 
-     * 
-     * 
-     * Example:
-     *     - Call: context.get('Person', {Id: 1});
-     *     - Service method: 'getPerson(params)'
-     * 
-     * @param {string} resource The resource name to fetch.
-     * @param {object} queryParameters The query parameters (optional);
-     * @returns {object} An AngularJS promise.
-     */
-    ObjectContext.prototype.get = function(resource, queryParameters) {
-        var self = this;
-
-        if (!queryParameters) {
-            queryParameters = {};
-        }
-
-        if (!resource || resource.toString().trim().length === 0) {
-            throw ObjectContextException('Invalid type specified.');
-        }
-
-        if (!this._endpointUri) {
-            throw ObjectContextException('No endpoint URI specified.');
-        }
-
-        var deferred = this._q.defer();
-
-        this.isLoading = true;
-
-        // Check if we need to add a slash to the URI
-        var separator = this._endpointUri.slice(-1) === '/' ? '' : '/';
-
-//        this._http({method: 'GET', url: this._endpointUri + separator + resource})
-//        .success(function(data, status, headers, config) {
-//            self.add(data);
-//            self.evaluate();
-//
-//            this.isLoading = false;
-//
-//            deferred.resolve(data);
-//        })
-//        .error(function(data, status, headers, config) {
-//            deferred.reject(data);
-//        });
-
-(function() {
-    var newPerson = new Person(new Date().getTime(), "Brad", 51);
-    newPerson._objectMeta.status = self.ObjectStatus.New;
-    self.add(newPerson);
-    self.isLoading = false;
-    deferred.resolve(newPerson);
-    self.evaluate();
-})();
-
-        return deferred.promise;
-    };
-
-    /**
-     * Sends a POST request with the current changes in the context to the server
-     * to be saved.
-     *
-     * Take the current object in each tracked object, and update its original value
-     * and clear the changeset after the request has been completed.
-     * 
-     * @returns {object} An AngularJS promise.
-     */
-    ObjectContext.prototype.saveChanges = function() {
-        var deferred = this._q.defer();
-
-        // TODO: Send a submit request with the currently loaded objects. This will
-        //       persist the objects based on their object status. When the request
-        //       returns, refresh the context.
-
-        this.isSubmitting = true;
-
-        // this._http({ method: 'POST', url: this._endpointUri })
-        // .success(function(data, status, headers, config) {
-
-        // })
-        // .error(function(data, status, headers, config) {
-        //     deferred.reject(data);
-        // });
-
-        for (var i = this._objectMap.length - 1; i >= 0; i--) {
-            var mappedObject = this._objectMap[i];
-
-            // Check if we need to remove this object from the context
-            if (mappedObject.current._objectMeta.status === this.ObjectStatus.Deleted) {
-                this._objectMap.splice(i, 1);
-                continue;
-            }
-
-            // This object was not removed so update its original values to be a copy of
-            // the current values. Also, set its status to Unmodified.
-            mappedObject.changeset = [];
-            mappedObject.current._objectMeta.status = this.ObjectStatus.Unmodified;
-            mappedObject.original = angular.copy(mappedObject.current);
-        }
-
-        this.evaluate();
-
-        this.isSubmitting = false;
-        deferred.resolve();
-
-        return deferred.promise;
-    };
-
-    /**
-     * Returns all objects in the context in their current state.
-     * 
-     * @returns {array} An Array of objects that exists in the context.
-     */
-    ObjectContext.prototype.getObjects = function() {
-        var objects = [];
-
-        for (var i = 0; i < this._objectMap.length; i++) {
-            objects.push(this._objectMap[i].current);
-        }
-
-        return objects;
-    };
-
-    /**
-     * Returns all objects that have status of 'Unmodified'.
-     * 
-     * @param {boolean} parentsOnly Retrieve only parent objects.
-     * @returns {array} An array of objects with a status of 'Unmodified'.
-     */
-    ObjectContext.prototype.getUnmodifiedObjects = function(parentsOnly) {
-        return this._getObjectsByStatus(this.ObjectStatus.Unmodified, parentsOnly);
-    };
-
-    /**
-     * Returns all objects that have status of 'Modified'.
-     * 
-     * @param {boolean} parentsOnly Retrieve only parent objects.
-     * @returns {array} An array of objects with a status of 'Modified'.
-     */
-    ObjectContext.prototype.getModifiedObjects = function(parentsOnly) {
-        return this._getObjectsByStatus(this.ObjectStatus.Modified, parentsOnly);
-    };
-
-    /**
-     * Returns all objects that have status of 'New'.
-     * 
-     * @param {boolean} parentsOnly Retrieve only parent objects.
-     * @returns {array} An array of objects with a status of 'New'.
-     */
-    ObjectContext.prototype.getNewObjects = function(parentsOnly) {
-        return this._getObjectsByStatus(this.ObjectStatus.New, parentsOnly);
-    };
-    
-    /**
-     * Returns all objects that have status of 'Deleted'.
-     * 
-     * @param {boolean} parentsOnly Retrieve only parent objects.
-     * @returns {array} An array of objects with a status of 'Deleted'.
-     */
-    ObjectContext.prototype.getDeletedObjects = function(parentsOnly) {
-        return this._getObjectsByStatus(this.ObjectStatus.Deleted, parentsOnly);
-    };
-
-    /**
-     * Returns all objects (in their current state) that have the provided status.
-     * 
-     * @param {ObjectStatus} status The status of the requested objects.
-     * @param {boolean} parentsOnly Retrieve only parent objects.
-     * @returns {array} An array of objects with a status of 'status'.
-     */
-    ObjectContext.prototype._getObjectsByStatus = function(status, parentsOnly) {
-        if (!status ||
-            (status !== this.ObjectStatus.New &&
-            status !== this.ObjectStatus.Modified &&
-            status !== this.ObjectStatus.Unmodified &&
-            status !== this.ObjectStatus.Deleted)) {
-            throw ObjectContextException(this.stringFormat('Invalid status ("{0}"). ' +
-                  'Status must be either "Unmodified", "Modified", "New", or "Deleted".', status));
-        }
-        
-        var objects = [];
-        
-        for (var i=0; i<this._objectMap.length; i++) {
-            var mappedObject = this._objectMap[i];
-            
-            if (mappedObject.current._objectMeta.status === status && (!parentsOnly || (parentsOnly === true && !mappedObject.rootParent))) {
-                objects.push(this._objectMap[i].current);
-            }
-        }
-        
-        return objects;
-    };
-
-    /**
-     * Attempts to find a single object in the context using the provided property.
-     * 
-     * @param {string} requestedType The type of objects to fetch from the context.
-     * @returns {array} An array of objects found.
-     */
-    ObjectContext.prototype.getObjectsByType = function(requestedType) {
-        var objects = [];
-
-        for (var i = 0; i < this._objectMap.length; i++) {
-            if (this._objectMap[i].current._objectMeta.type === requestedType) {
-                objects.push(this._objectMap[i].current);
-            }
-        }
-
-        return objects;
-    };
-
-    /**
-     * Applies all changes in currently modified objects. After this, all objects
-     * that previously had a status that was not equal to 'Unmodified', will now
-     * have an 'Unmodified' status.
-     * 
-     * If the object has a status of deleted, then the object will be removed 
-     * from the context.
-     * 
-     * Objects that were unchanged are not touched.
-     */
-    ObjectContext.prototype.applyChanges = function() {
-        for (var i=this._objectMap.length-1; i>=0; i--) {
-            var currentObject = this._objectMap[i];
-
-            if (currentObject.current._objectMeta.status === this.ObjectStatus.Deleted) {
-                this._objectMap.splice(i, 1);
-            }
-            else if (currentObject.current._objectMeta.status !== this.ObjectStatus.Unmodified) {
-                currentObject.changeset = [];
-                currentObject.current._objectMeta.status = this.ObjectStatus.Unmodified;
-                currentObject.original = angular.copy(currentObject.current);
-            }
-        }
-        
-        this.evaluate();
-    };
-
-    /**
-     * Output the state and all objects in the context to the console.
-     */
-    ObjectContext.prototype.log = function() {
-        console.group('ObjectContext');
-        
-        console.log('Has Changes: ' + this.hasChanges());
-        console.log('Tracked Objects: ' + this._objectMap.length);
-        
-        var parentObjects = [];
-        for (var i=0; i<this._objectMap.length; i++) {
-            if (!this._objectMap[i].rootParent) {
-                parentObjects.push(this._objectMap[i]);
-            }
-        }
-        
-        console.group('Parent Objects');
-        console.dir(parentObjects);
-        console.groupEnd();
-        
-        console.group('All Objects');
-        console.dir(this._objectMap);
-        console.groupEnd();
-        
-        console.group('Changed Objects');
-        console.log('Unmodified', this.getUnmodifiedObjects());
-        console.log('Modified', this.getModifiedObjects());
-        console.log('New', this.getNewObjects());
-        console.log('Deleted', this.getDeletedObjects());
-        console.groupEnd();
-        
-        console.groupEnd();
-    };
-
-    /**
-     * Gives us the ability to use placeholders in strings and replace their positions
-     * with specified corresponding values.
-     * 
-     * @returns {string} A formatted string.
-     */
-    ObjectContext.prototype.stringFormat = function() {
-        var s = arguments[0];
-
-        for (var i = 0; i < arguments.length - 1; i++) {
-            var reg = new RegExp("\\{" + i + "\\}", "gm");
-            s = s.replace(reg, arguments[i + 1]);
-        }
-
-        return s;
-    };
-})();
+});

@@ -36,7 +36,26 @@ Coming soon...
   - `parameter` `objectReference` The object to test for existence.
   - `returns` `true` if the objects exists already, `false` otherwise.  
 
-* **`object` add(obj, rootParent, parent, isStatusNew)**
+* **`object` add(obj, [rootParent], [parent], [isStatusNew])**
+
+  Adds an object to the context. Any changes to the properties on this object
+  will trigger the context to have changes (after `evaluate()` is called) and notify 
+  any subscribers.
+  
+  This method wraps the passed in object in an object that it can work with. The
+  passed in object will be copied so we can store its original state.
+  
+  If a meta property does not exist on the object then one will be added to it.
+  
+  Any changes that are made to this object can be seen by querying the changeset
+  property.
+  
+  - `parameter` `obj` The object to start tracking.
+  - `parameter` `rootParent` [optional] The top level object that this object is associated with. `null` if it has no parent.
+  - `parameter` `parent` [optional] The direct parent object of this object. `null` if it has no parent`
+  - `parameter` `isStatusNew` [optional] A boolean flag to indicate if this object is to be marked as 'New' or 'Unmodified'.
+  - `returns` A reference to `this` for chaining.
+
 * **`object` deleteObject(obj, hardDelete)**
 * **`boolean` hasChanges()**
 * **`boolean` hasChildChanges(obj)**

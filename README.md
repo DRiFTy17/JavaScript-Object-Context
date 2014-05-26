@@ -30,5 +30,4 @@ Coming soon...
 
 ## Development
 
-* Install Jasmine, Karma, and Grunt to build and test
-
+* Install Jasmine to run unit tests.

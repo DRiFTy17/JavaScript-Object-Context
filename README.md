@@ -11,7 +11,7 @@ A sandbox demo app that uses the module can be found in [this plunker](http://pl
 
 To use this without Angular, just add a JavaScript object to the context, and manually call the evaluate function to determine what changed.
 
-* [Getting Started](#getting-start)
+* [Getting Started](#getting-started)
 * [API Documentation](#api-documentation)
 * [Examples](#examples)
 * [Development](#development)

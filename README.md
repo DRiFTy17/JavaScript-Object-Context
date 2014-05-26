@@ -1,7 +1,7 @@
 Angular Change Tracker
 ====================
 
-A client-side change tracking module built with JavaScript and AngularJS.
+A client-side JavaScript change tracking module.
 
 This module can be used as a standalone container to track client-side JavaScript objects for changes. The ObjectContext object is not dependent on Angular, but it works well with it due to listening for $digest calls to automatically evaluate all loaded objects for changes.
 

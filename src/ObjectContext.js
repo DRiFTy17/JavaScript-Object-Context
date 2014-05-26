@@ -263,7 +263,16 @@ ObjectContext.prototype._createMappedObject = function(obj, rootParent, parent) 
     };
 };
 
+/**
+ * 
+ * @param {object} obj The object to test for changes.
+ * @returns {boolean}
+ */
 ObjectContext.prototype._doesObjectHaveChanges = function(obj) {
+    if (!obj || !obj.changeset || !obj.current || !obj.current._objectMeta || !obj.current._objectMeta.status) {
+        throw new Error('Invalid object provided');
+    }
+    
     return obj.changeset.length > 0 ||
            obj.current._objectMeta.status === ObjectContext.ObjectStatus.New ||
            obj.current._objectMeta.status === ObjectContext.ObjectStatus.Modified ||

@@ -22,8 +22,8 @@
                 <hr/>
                 <div>
                     <button class="btn btn-primary" ng-click="onLogContext()">Log Context</button>
-                    <button class="btn btn-warning" ng-click="onReset()">Reset All</button>
-                    <button class="btn btn-danger" ng-click="onRemoveAll()">Remove All</button>
+                    <button class="btn btn-warning" ng-click="onRejectAll()">Reject All Changes</button>
+                    <button class="btn btn-danger" ng-click="onClear()">Clear Context</button>
                     <button class="btn btn-success" ng-click="onApplyChanges()" ng-disabled="!hasChanges">Apply Changes</button>
                 </div>
                 
@@ -52,7 +52,7 @@
                                     <button class="btn btn-warning" ng-click="onResetCurrent(object)">Reset</button>
                                 </td>
                                 <td>
-                                    <button class="btn btn-danger" ng-click="onRemove(object)">Remove</button>
+                                    <button class="btn btn-danger" ng-click="onRemove(object)">Delete</button>
                                 </td>
                                 <td style="vertical-align: middle;">{{object.name}}</td>
                                 <td style="vertical-align: middle; width: 100px;">{{object._objectMeta.status}}</td>

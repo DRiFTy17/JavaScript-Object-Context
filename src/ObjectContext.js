@@ -348,24 +348,8 @@ ObjectContext.prototype.deleteObject = function(obj, hardDelete) {
     }
 
     this.evaluate();
-};
-
-/**	
- * Removes all existing objects from the context.
- * 
- * @param {boolean} hardRemove Whether or not to remove all objects from the context, or just mark them for deletion.
- */
-ObjectContext.prototype.removeAll = function(hardRemove) {
-    if (hardRemove === true) {
-        this._objectMap = [];
-    }
-    else {
-        for (var i=0; i<this._objectMap.length; i++) {
-            this._objectMap[i].current._objectMeta.status = ObjectContext.ObjectStatus.Deleted;
-        }
-    }
-
-    this.evaluate();
+    
+    return this;
 };
 
 /**
@@ -472,6 +456,8 @@ ObjectContext.prototype.evaluate = function() {
             listener(this.hasChanges());
         }
     }
+    
+    return this;
 };
 
 /**
@@ -546,34 +532,36 @@ ObjectContext.prototype._setPropertyChanged = function(obj, property) {
 };
 
 /**
- * Revert changes for one specific object back to its original state.
+ * Rejects changes for object that exist in the context by setting the values in
+ * the object back their original values.
  * 
- * @param {object} obj The object that we are reverting the changes for.
+ * If a single object is passed, it will be tested for existance and then that
+ * one object will be reverted. If no object is passed, then all objects will be
+ * reverted.
+ * 
+ * @param {object} obj An existing context object to reject changes for.
+ * @returns {object} A reference to this for chaining.
  */
-ObjectContext.prototype.revert = function(obj) {
-    if (!obj) {
-        throw new Error('Invalid object provided.');
+ObjectContext.prototype.rejectChanges = function(obj) {
+    // Check if we are rejecting changes for an existing object, or all objects
+    if (obj) {
+        var itemIndex = this._getMapIndex(obj);
+
+        if (itemIndex === null) {
+            throw new Error('Could not determine object index. Reject changes failed.');
+        }
+        
+        this._resetObject(this._objectMap[itemIndex]);
     }
-
-    var itemIndex = this._getMapIndex(obj);
-
-    if (itemIndex === null) {
-        throw new Error('Could not determine object index. Revert changes failed.');
+    else {
+        for (var i=0; i<this._objectMap.length; i++) {
+            this._resetObject(this._objectMap[i]);
+        }
     }
-
-    this._resetObject(this._objectMap[itemIndex]);
+    
     this.evaluate();
-};
-
-/**
- * Revert changes for all tracked objects back to their original state.
- */
-ObjectContext.prototype.revertAll = function() {
-    for (var i=0; i<this._objectMap.length; i++) {
-        this._resetObject(this._objectMap[i]);
-    }
-
-    this.evaluate();
+    
+    return this;
 };
 
 /**
@@ -671,6 +659,8 @@ ObjectContext.prototype.hasChildChanges = function(obj) {
 ObjectContext.prototype.clear = function() {
     this._objectMap = [];
     this._changeListeners = [];
+    
+    return this;
 };
 
 /**
@@ -831,7 +821,7 @@ ObjectContext.prototype.getObjectsByType = function(requestedType) {
  * 
  * Objects that were unchanged are not touched.
  */
-ObjectContext.prototype.applyChanges = function() {
+ObjectContext.prototype.acceptChanges = function() {
     var evalChanges = false;
     
     // First we need to determine if there are any objects that are part of an 
@@ -870,6 +860,8 @@ ObjectContext.prototype.applyChanges = function() {
     }
 
     this.evaluate();
+    
+    return this;
 };
 
 /**

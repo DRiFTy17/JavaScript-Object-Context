@@ -38,7 +38,7 @@
               console.log('Changeset: ', context.getChangeset($scope.person, true));
           }
 
-          context.applyChanges();
+          context.acceptChanges();
           if (!context.doesObjectExist($scope.person)) {
               $scope.person = null;
           }
@@ -49,14 +49,14 @@
        * Returns the currently loaded person object to its original state.
        */
       $scope.onResetCurrent = function(object) {
-        context.revert(object);
+        context.rejectChanges(object);
       };
       
       /**
        * Reset changes to all objects in the context.
        */ 
-      $scope.onReset = function() {
-        context.revertAll();
+      $scope.onRejectAll = function() {
+        context.rejectChanges();
       };
       
       /**
@@ -129,8 +129,8 @@
       /**
        * Removes all objects from the context. Similar to clear.
        */ 
-      $scope.onRemoveAll = function() {
-        context.removeAll(true);
+      $scope.onClear = function() {
+        context.clear();
         $scope.person = null;
       };
       

@@ -8,3 +8,7 @@ This module can be used as a standalone container to track client-side JavaScrip
 A sandbox demo app that uses the module can be found in [this plunker](http://plnkr.co/edit/YjvD9gb5iUvVVZC41g6s).
 
 To use this without Angular, just add a JavaScript object to the context, and manually call the evaluate function to determine what changed.
+
+## API Documentation
+
+Coming soon...

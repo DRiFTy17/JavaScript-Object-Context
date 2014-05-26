@@ -13,7 +13,6 @@ To use this without Angular, just add a JavaScript object to the context, and ma
 
 * [Getting Started](#getting-started)
 * [API Documentation](#api-documentation)
-* [Examples](#examples)
 * [Development](#development)
 
 ## Getting Started
@@ -267,10 +266,6 @@ context.hasChanges(person);
   Output the state and all objects in the context to the console.
   
   - `returns` `object` A reference to this for chaining.
-
-## Examples
-
-Coming soon...
 
 ## Development
 

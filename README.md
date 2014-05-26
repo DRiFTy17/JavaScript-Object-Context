@@ -33,7 +33,7 @@ Coming soon...
 
   Checks to see if the provided object has already been added to the context.
 
-  - `parameter` `objectReference` The object to test for existence.
+  - `parameter` `object` `objectReference` The object to test for existence.
   - `returns` `boolean` if the objects exists already, `false` otherwise.  
 
 * **`object` add(obj, [isStatusNew])**
@@ -50,8 +50,8 @@ Coming soon...
   Any changes that are made to this object can be seen by querying the `changeset`
   property.
   
-  - `parameter` `obj` The object to start tracking.
-  - `parameter` `isStatusNew` `[optional]` A boolean flag to indicate if this object is to be marked as 'New' or 'Unmodified'. Default value is falsy.
+  - `parameter` `object` `obj` The object to start tracking.
+  - `parameter` `boolean` `isStatusNew` `[optional]` A boolean flag to indicate if this object is to be marked as 'New' or 'Unmodified'. Default value is falsy.
   - `returns` `object` A reference to `this` for chaining.
 
 * **`object` deleteObject(obj, [hardDelete])**
@@ -60,9 +60,10 @@ Coming soon...
   
   If `hardDelete` is true, then the object will be instantly removed from the context. Any children of this object will also   be removed.
   
-  - `parameter` `obj` The object to delete.
-  - `parameters` `hardDelete` `[optional]` A boolean flag to determine if the object should be removed or just marked as   'Deleted'. The default value is falsy.
+  - `parameter` `object` `obj` The object to delete.
+  - `parameters` `boolean` `hardDelete` `[optional]` A boolean flag to determine if the object should be removed or just marked as   'Deleted'. The default value is falsy.
   - `returns` `object` A reference to `this` for chaining.
+  - `throws` Errorif the provided object doesn't exist.
 
 * **`boolean` hasChanges()**
 
@@ -74,8 +75,9 @@ Coming soon...
 
   Determines if the provided object has any children that are marked as being changed.
   
-  - `parameter` `obj` The object to check.
+  - `parameter` `object` `obj` The object to check.
   - `returns` `boolean` True if the object has child changes, false otherwise.
+  - `throws` Error if the provided object could not be found.
 
 * **`object` clear()**
 
@@ -89,42 +91,42 @@ Coming soon...
 
   Returns all objects in the context in their current state.
   
-  - `parameter` `boolean` If true is passed, then the internal objects are returned, otherwise the objects as they were added are returned in their current state.
+  - `parameter` `boolean` `returnMappedObjects` If true is passed, then the internal objects are returned, otherwise the objects as they were added are returned in their current state.
   - `returns` `array` An array of all existing objects.
 
 * **`array` getUnmodifiedObjects(parentsOnly)**
 
   Returns all objects that have status of 'Unmodified'.
   
-  - `parameter` `boolean` Retrieve only parent objects if true, false will fetch all objects including children.
+  - `parameter` `boolean` `parentsOnly` Retrieve only parent objects if true, false will fetch all objects including children.
   - `returns` `array` An array of objects with a status of 'Unmodified'.
 
 * **`array` getModifiedObjects(parentsOnly)**
 
   Returns all objects that have status of 'Modified'.
   
-  - `parameter` `boolean` Retrieve only parent objects if true, false will fetch all objects including children.
+  - `parameter` `boolean` `parentsOnly` Retrieve only parent objects if true, false will fetch all objects including children.
   - `returns` `array` An array of objects with a status of 'Modified'.
 
 * **`array` getNewObjects(parentsOnly)**
 
   Returns all objects that have status of 'New'.
   
-  - `parameter` `boolean` Retrieve only parent objects if true, false will fetch all objects including children.
+  - `parameter` `boolean` `parentsOnly` Retrieve only parent objects if true, false will fetch all objects including children.
   - `returns` `array` An array of objects with a status of 'New'.
 
 * **`array` getDeletedObjects(parentsOnly)**
 
   Returns all objects that have status of 'Deleted'.
   
-  - `parameter` `boolean` Retrieve only parent objects if true, false will fetch all objects including children.
+  - `parameter` `boolean` `parentsOnly` Retrieve only parent objects if true, false will fetch all objects including children.
   - `returns` `array` An array of objects with a status of 'Deleted'.
 
 * **`array` getObjectsByType(requestedType)**
 
   Attempts to find all objects in the context that have the `requestedType` noted in their metadata. If an object does not   provide a type, its default type of 'Object' will be used.
   
-  - `parameter` `string` The type of objects to fetch from the context.
+  - `parameter` `string` `requestedType` The type of objects to fetch from the context.
   - `returns` `array` An array of objects found.
 
 * **`object` acceptChanges()**
@@ -143,9 +145,10 @@ Coming soon...
   
   If `includeChildren` is passed along with an object, then we fetch the changesets for all objects in the context, that have the provided object as a parent.
   
-  - `parameter` `object` An object to search for.
-  - `parameter` `boolean` Include children of the provided (if possible)
+  - `parameter` `object` `obj` An object to search for.
+  - `parameter` `boolean` `includeChildren` `[optional]` Include children of the provided (if possible)
   - `returns` `array` An array with the properties that have changed.
+  - `throws` Error if the provided object could not be found.
 
 * **`object` getOriginal(objectReference)**
 
@@ -153,7 +156,7 @@ Coming soon...
      
   If the object is not found then `null` is returned.
   
-  - `parameter` `object` The object to search for.
+  - `parameter` `object` `objectReference` The object to search for.
   - `returns` `object` A copy of the original object, or null if not found.
 
 * **`string` getObjectStatus(obj)**
@@ -162,7 +165,7 @@ Coming soon...
   
   - `parameter` `object` `obj` The object to search for.
   - `returns` `string` The status of the requested object.
-  - `throws` Exception if `obj` could not be found.
+  - `throws` Error if `obj` could not be found.
 
 * **`object` rejectChanges([obj])**
 
@@ -170,20 +173,25 @@ Coming soon...
   
   If a single object is passed, it will be tested for existance, and then that one object will be reverted. If no object is   passed, then all objects will be reverted.
   
-  - `parameter` `object` `obj` An existing context object to reject changes for.
+  - `parameter` `object` `obj` `[optional]` An existing context object to reject changes for.
   - `returns` `object` A reference to this for chaining.
+  - `throws` Error if `obj` is provided and could not be found.
 
 * **`number` subscribeChangeListener(listener)** 
 
   Subcribes the passed listener function that will be invoked when a change has occured.
   
   - `parameter` `function` `listener` A function to invoke when a change occurs to any objects in the context.
+  - `returns` `number` The total number of subscribed listeners.
+  - `throws` Error if `listener` is not a `function`.
 
 * **`number` unsubscribeChangeListener(listener)**
 
   Unsubscribes the provided change listener.
   
   - `parameter` `function` `listener` A function reference to unsubscribe.
+  - `returns` `number` The total number of subscribed listeners.
+  - `throws` Error if `listener` was not subscribed first.
 
 * **`void` log()**
 
@@ -198,3 +206,4 @@ Coming soon...
 ## Development
 
 * Install Jasmine to run unit tests.
+* Grunt and Karma will be added soon to automate building and testing.

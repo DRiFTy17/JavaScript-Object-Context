@@ -617,15 +617,27 @@ function ObjectContext() {
     };
     
     /**
-     * Determines if any of the tracked objects have any active changesets.
+     * Determines if any of the tracked objects have any active changesets. If an
+     * object is passed, then just that object will be tested for changes.
      * 
      * @public
      * @returns {boolean} Determines whether or not the context has any objects with changes.
      */
-    this.hasChanges = function() {
-        for (var i=0; i<_objectMap.length; i++) {
-            if (_objectMap[i].hasChanges()) {
-                return true;
+    this.hasChanges = function(obj) {
+        if (obj) {
+            var mappedObject = _getMappedObject(obj);
+            
+            if (!mappedObject) {
+                throw new Error('Invalid object provided.');
+            }
+            
+            return mappedObject.hasChanges();
+        }
+        else {
+            for (var i=0; i<_objectMap.length; i++) {
+                if (_objectMap[i].hasChanges()) {
+                    return true;
+                }
             }
         }
 

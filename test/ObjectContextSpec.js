@@ -11,7 +11,7 @@ describe('ObjectContext', function() {
         context.clear();
         context = null;
     });
-    
+
     describe('add', function() {
         it('should add object successfully', function() {
             var obj = {testProperty: 'testValue'};
@@ -79,23 +79,6 @@ describe('ObjectContext', function() {
             var obj = {};
             context.add(obj);
             expect(context.doesObjectExist({})).toEqual(false);
-        });
-    });
-    
-    describe('_doesObjectHaveChanges', function() {
-        it('should throw if invalid object is passed', function() {
-            expect(function() {context._doesObjectHaveChanges();}).toThrow();
-            expect(function() {context._doesObjectHaveChanges({});}).toThrow();
-            expect(function() {context._doesObjectHaveChanges({property: 'value'});}).toThrow();
-        });
-        
-        it('should return true if object has changeset entries', function() {
-            var obj = {property: 'value'};
-            var objects = context.add(obj).getObjects(true);
-            obj.property = 'new value';
-            context.evaluate();
-            
-            expect(context._doesObjectHaveChanges(objects[0])).toEqual(true);
         });
     });
 });

@@ -144,7 +144,10 @@
       };
       
       $scope.hasChildChanges = function() {
-          if (!$scope.person) return '';
+          if (!context.doesObjectExist($scope.person)) {
+            $scope.person = null;
+            return '';
+          }
           return context.hasChildChanges($scope.person);
       };
     }

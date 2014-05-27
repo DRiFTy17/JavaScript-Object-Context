@@ -362,13 +362,6 @@ function ObjectContext() {
             if (!(obj.current[property] instanceof Array)) {
                 obj.current[property] = obj.original[property];
             }
-            else {
-                for (var x=obj.current[property].length-1; x>=0; x--) {
-                    if (obj.current[property][x]._objectMeta.status === ObjectContext.ObjectStatus.New) {
-                        obj.current[property].splice(x, 1);
-                    }
-                }
-            }
         }
 
         obj.current._objectMeta.status = obj.original._objectMeta.status;
@@ -380,7 +373,13 @@ function ObjectContext() {
             for (var j=_objectMap.length-1; j>=0; j--) {
                 var currentObject = _objectMap[j];
 
-                if (currentObject.current._objectMeta.status === ObjectContext.ObjectStatus.New && !currentObject.rootParent) {
+                // We skip objects that don't match the current object we are resetting, and 
+                // are either a root object, or the root object doesn't match the current.
+                if (currentObject !== obj && (!currentObject.rootParent || currentObject.rootParent !== obj.current)) {
+                    continue;
+                }
+
+                if (currentObject.current._objectMeta.status === ObjectContext.ObjectStatus.New) {
                     self.deleteObject(currentObject.current, true);
                 }
                 else if (currentObject === obj) {
@@ -674,7 +673,6 @@ function ObjectContext() {
      */
     this.clear = function() {
         _objectMap = [];
-        _changeListeners = [];
 
         return this;
     };

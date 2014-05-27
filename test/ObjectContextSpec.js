@@ -30,16 +30,6 @@ describe('ObjectContext', function() {
             expect(objects[0].current._objectMeta.status).toEqual(ObjectContext.ObjectStatus.Unmodified);
         });
         
-        it('should have changes after modifying an added object', function() {
-            var obj = {testProperty: 'testValue'};
-            context.add(obj);
-            obj.testProperty = 'changed';
-            context.evaluate();
-            
-            expect(context.hasChanges()).toEqual(true);
-            expect(context.getChangeset(obj).length).toEqual(1);
-        });
-        
         it('should throw if invalid object is added', function() {
             expect(context.add).toThrow();
         });
@@ -64,6 +54,18 @@ describe('ObjectContext', function() {
         });
     });
     
+    describe('evaluate', function() {
+        it('should have changes after modifying an added object', function() {
+            var obj = {testProperty: 'testValue'};
+            context.add(obj);
+            obj.testProperty = 'changed';
+            context.evaluate();
+            
+            expect(context.hasChanges()).toEqual(true);
+            expect(context.getChangeset(obj).length).toEqual(1);
+        });
+    });
+
     describe('doesObjectExist', function() {
         it('should return false if invalid object', function() {
             expect(context.doesObjectExist(null)).toEqual(false);

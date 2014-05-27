@@ -92,7 +92,8 @@ Then to commit all of the changes to all objects in the context:
 ```js
 context.acceptChanges();
 
-context.hasChanges(person); // false
+context.hasChanges(person); // true
+context.hasChanges(person.favoriteSport); // false
 ```
 
 ## API Documentation

@@ -81,10 +81,18 @@ context.evaluate();
 context.getChangeset(person);
 
 // Tests to see if any objects in the context have changes
-context.hasChanges();
+context.hasChanges(); // true
 
 // To determine if just this object has changes, call `hasChanges()` and pass the object
-context.hasChanges(person);
+context.hasChanges(person); // false
+```
+
+Then to commit all of the changes to all objects in the context:
+
+```js
+context.acceptChanges();
+
+context.hasChanges(person); // false
 ```
 
 ## API Documentation

@@ -380,11 +380,10 @@ function ObjectContext() {
             for (var j=_objectMap.length-1; j>=0; j--) {
                 var currentObject = _objectMap[j];
 
-                if (currentObject === obj) {
-                    continue;
+                if (currentObject.current._objectMeta.status === ObjectContext.ObjectStatus.New && !currentObject.rootParent) {
+                    self.deleteObject(currentObject.current, true);
                 }
-
-                if (currentObject.current._objectMeta.status === ObjectContext.ObjectStatus.New) {
+                else if (currentObject === obj) {
                     continue;
                 }
                 else if (currentObject.current._objectMeta.status === ObjectContext.ObjectStatus.Deleted) {

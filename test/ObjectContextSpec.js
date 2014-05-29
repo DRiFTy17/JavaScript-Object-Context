@@ -2,6 +2,18 @@
 
 describe('ObjectContext', function() {
     var context;
+
+    function Person() {
+        this.id = 1;
+        this.name = 'Tiger Woods';
+        this.age = 38;
+        this.favoriteSport = {name: 'Golf'};
+        this.favoriteColors = [{name: 'Red'}, {name: 'Blue'}];
+        this._objectMeta = {
+            status: ObjectContext.ObjectStatus.Unmodified, 
+            type: 'Person'
+        };
+    }
     
     beforeEach(function() {
         context = new ObjectContext();
@@ -18,11 +30,16 @@ describe('ObjectContext', function() {
             context.add(obj);
             var objects = context.getObjects(true);
 
-            expect(objects[0].hasOwnProperty('current')).toEqual(true);
-            expect(objects[0].hasOwnProperty('original')).toEqual(true);
-            expect(objects[0].hasOwnProperty('hasChanges')).toBe(true);
             expect(objects[0].current).toBe(obj);
         });
+
+        it('should add object with new status', function() {
+            var person = new Person();
+            context.add(person, true);
+            var status = context.getObjectStatus(person);
+
+            expect(status).toEqual(ObjectContext.ObjectStatus.New);
+        })
 
         it('should have one object after adding one object', function() {
             var obj = {testProperty: 'testValue'};
@@ -39,8 +56,8 @@ describe('ObjectContext', function() {
             context.add(objTwo, true);
             var objects = context.getObjects(true);
 
-            expect(objects[0].current._objectMeta.status).toEqual(ObjectContext.ObjectStatus.Unmodified);
-            expect(objects[1].current._objectMeta.status).toEqual(ObjectContext.ObjectStatus.New);
+            expect(objects[0].getStatus()).toEqual(ObjectContext.ObjectStatus.Unmodified);
+            expect(objects[1].getStatus()).toEqual(ObjectContext.ObjectStatus.New);
         });
 
         it('should make a copy of the current object', function() {
@@ -48,6 +65,7 @@ describe('ObjectContext', function() {
             context.add(obj);
             var objects = context.getObjects(true);
 
+            expect(objects[0].original).toBeDefined();
             expect(objects[0].original).not.toBe(obj);
         });
 
@@ -64,14 +82,9 @@ describe('ObjectContext', function() {
             expect(objects.length).toEqual(7);
         });
 
-        it('should have valid parent child relationships', function() {
-            var obj = {
-                propertyOne: 'propertyOne',
-                propertyTwo: {one: 'one', two: {one: 'one'}, three: [{one: 'one', two: 'two'}]}
-            };
-
+        it('should have valid parent child relationship for nested object', function() {
+            var obj = {property: {test: 'value'};
             context.add(obj);
-
             var objects = context.getObjects(true);
 
             expect(objects[0].current).toBe(obj);
@@ -205,6 +218,24 @@ describe('ObjectContext', function() {
         });
     });
 
+    describe('rejectChanges', function() {
+        it('should have zero changes after rejecting changes to object', function() {
+            var personOne = new Person();
+            var personTwo = new Person();
+
+            context.add(personOne, true);
+            context.add(personTwo);
+
+            personTwo.name = 'new name';
+
+            context.evaluate();
+
+            context.rejectChanges();
+
+            expect(context.hasChanges()).toEqual(false);
+        });
+    });
+
     describe('doesObjectExist', function() {
         it('should return false if invalid object', function() {
             expect(context.doesObjectExist(null)).toEqual(false);
@@ -220,6 +251,50 @@ describe('ObjectContext', function() {
             var obj = {};
             context.add(obj);
             expect(context.doesObjectExist({})).toEqual(false);
+        });
+    });
+
+    describe('subscribeChangeListener', function() {
+        it('should successfully add listener function', function() {
+            var listenerCount = context.subscribeChangeListener(function() {});
+
+            expect(listenerCount).toBe(1);
+        });
+
+        it('should throw if listener is not a function', function() {
+            var subscribeInvalidListener = function() {
+                functioncontext.subscribeChangeListener({property: 'value'});
+            };
+
+            expect(subscribeInvalidListener).toThrow();
+        });
+    });
+
+    describe('unsubscribeChangeListener', function() {
+        it('should successfully unsubscribe listener function', function() {
+            var listener = function() {};
+            context.subscribeChangeListener(listener);
+            var listenerCount = context.unsubscribeChangeListener(listener);
+
+            expect(listenerCount).toBe(0);
+        });
+
+        it('should throw if listener was not added first', function() {
+            var unsubscribeListener = function() {
+                var listener = function() {};
+                context.unsubscribeChangeListener(listener);
+            };
+
+            expect(unsubscribeListener).toThrow();
+        });
+    });
+
+    describe('clear', function() {
+        it('should have no objects loaded', function() {
+            context.add({test: 'value'});
+            var numberOfLoadedObjects = context.clear().getObjects().length;
+
+            expect(numberOfLoadedObjects).toBe(0);
         });
     });
 });

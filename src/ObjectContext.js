@@ -357,7 +357,7 @@ function ObjectContext() {
         var mappedObjectIndex = _getMapIndex(obj);
 
         if (mappedObjectIndex === null) {
-            throw new Error(_stringFormat('Invalid object index: {0}', mappedObjectIndex));
+            throw new Error('Invalid object index.');
         }
 
         return _objectMap[mappedObjectIndex];
@@ -405,47 +405,50 @@ function ObjectContext() {
      * @returns {object} A reference of this for method chaining.
      */
     var _addObject = function(obj, rootParent, parent, isStatusNew) {
-       // Restrict passed in values to be an object
-       if (typeof obj !== 'object' || obj instanceof Array) {
-           throw new Error('Invalid object specified. The value provided must be of type "object".');
-       }
+        if (!obj) {
+            throw new Error('Invalid object specified.');
+        }
 
-       if (self.doesObjectExist(obj)) {
-           throw new Error('Object already exists in the context.');
-       }
+        if (typeof obj !== 'object' || obj instanceof Array) {
+            throw new Error('Invalid object specified. The value provided must be of type "object".');
+        }
 
-       if (!obj._objectMeta) {
-           obj._objectMeta = {
-               status: isStatusNew ? ObjectContext.ObjectStatus.New : ObjectContext.ObjectStatus.Unmodified,
-               type: 'Object'
-           };
-       } 
-       else if (!obj._objectMeta.status) {
-           obj._objectMeta.status = ObjectContext.ObjectStatus.Unmodified;
-       }
-       else if (!obj._objectMeta.type) {
-           obj._objectMeta.type = 'Object';
-       }
-       else if (obj._objectMeta && obj._objectMeta.status && obj._objectMeta.status === ObjectContext.ObjectStatus.New) {
-           isStatusNew = true;
-       }
+        if (self.doesObjectExist(obj)) {
+            throw new Error('Object already exists in the context.');
+        }
 
-       if (obj._objectMeta.status !== ObjectContext.ObjectStatus.New &&
-           obj._objectMeta.status !== ObjectContext.ObjectStatus.Unmodified &&
-           obj._objectMeta.status !== ObjectContext.ObjectStatus.Modified &&
-           obj._objectMeta.status !== ObjectContext.ObjectStatus.Deleted) {
-           throw new Error(_stringFormat('Invalid object status: {0}', obj._objectMeta.status));
-       }
+        if (!obj._objectMeta) {
+            obj._objectMeta = {
+                status: isStatusNew ? ObjectContext.ObjectStatus.New : ObjectContext.ObjectStatus.Unmodified,
+                type: 'Object'
+            };
+        } 
+        else if (!obj._objectMeta.status) {
+            obj._objectMeta.status = ObjectContext.ObjectStatus.Unmodified;
+        }
+        else if (!obj._objectMeta.type) {
+            obj._objectMeta.type = 'Object';
+        }
+        else if (obj._objectMeta && obj._objectMeta.status && obj._objectMeta.status === ObjectContext.ObjectStatus.New) {
+            isStatusNew = true;
+        }
 
-       // Check if we were told to add this object as a 'New' object
-       if (isStatusNew && obj._objectMeta.status !== ObjectContext.ObjectStatus.New) {
-           obj._objectMeta.status = ObjectContext.ObjectStatus.New;
-       }
+        if (obj._objectMeta.status !== ObjectContext.ObjectStatus.New &&
+            obj._objectMeta.status !== ObjectContext.ObjectStatus.Unmodified &&
+            obj._objectMeta.status !== ObjectContext.ObjectStatus.Modified &&
+            obj._objectMeta.status !== ObjectContext.ObjectStatus.Deleted) {
+            throw new Error(_stringFormat('Invalid object status: {0}', obj._objectMeta.status));
+        }
 
-       _objectMap.push(_createMappedObject(obj, rootParent, parent));
-       _addChildren(obj, rootParent, isStatusNew);
+        // Check if we were told to add this object as a 'New' object
+        if (isStatusNew && obj._objectMeta.status !== ObjectContext.ObjectStatus.New) {
+            obj._objectMeta.status = ObjectContext.ObjectStatus.New;
+        }
 
-       return self;
+        _objectMap.push(_createMappedObject(obj, rootParent, parent));
+        _addChildren(obj, rootParent, isStatusNew);
+
+        return self;
     };
     
     /**
@@ -581,9 +584,9 @@ function ObjectContext() {
                 }
             }
         }
-
-        //this.evaluate();
-
+        
+        this.evaluate();
+        
         return this;
     };
     
@@ -623,7 +626,7 @@ function ObjectContext() {
      */
     this.hasChildChanges = function(obj) {
         if (!obj) {
-            throw new Error('Error determing if object has child changes. The object could not be found.');
+            throw new Error('Error determining if object has child changes. The object could not be found.');
         }
 
         var mappedObject = _getMappedObject(obj);
@@ -631,6 +634,10 @@ function ObjectContext() {
         if (!mappedObject) {
             throw new Error('Invalid object provided.');
         }
+
+        // The hasChildChanges property is set inside hasChanges so we need
+        // to call this first.
+        mappedObject.hasChanges();
 
         return mappedObject.hasChildChanges;
     };
@@ -910,8 +917,7 @@ function ObjectContext() {
                     var currentObject = _objectMap[i];
 
                     if (!currentObject.rootParent ||
-                        (currentObject.rootParent === mappedObject.current && 
-                        currentObject.getStatus() === ObjectContext.ObjectStatus.Modified)) {
+                        currentObject.getStatus() === ObjectContext.ObjectStatus.Modified) {
                         _resetObject(currentObject);
                     }
                 }
@@ -933,7 +939,7 @@ function ObjectContext() {
             }
         }
 
-        //this.evaluate();
+        this.evaluate();
 
         return this;
     };

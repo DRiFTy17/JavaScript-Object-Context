@@ -19,11 +19,6 @@ describe('ObjectContext', function() {
         context = new ObjectContext();
     });
     
-    afterEach(function() {
-        context.clear();
-        context = null;
-    });
-
     describe('getObjects', function() {
         it('should return an array', function() {
             expect(context.getObjects() instanceof Array).toBeTruthy();
@@ -213,6 +208,14 @@ describe('ObjectContext', function() {
             context.add(obj, true);
 
             expect(context.evaluate().rejectChanges(obj).hasChanges()).toEqual(false);
+        });
+
+        it('should reset a deleted object correctly', function() {
+            var obj = new Person(1, 'Tiger Woods', 38);
+            context.add(obj);
+            context.deleteObject(obj);
+
+            expect(context.rejectChanges(obj).hasChanges()).toEqual(false);
         });
 
         it('should not have changes to changed object but should have changes in context', function() {

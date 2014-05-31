@@ -917,7 +917,8 @@ function ObjectContext() {
                     var currentObject = _objectMap[i];
 
                     if (!currentObject.rootParent ||
-                        currentObject.getStatus() === ObjectContext.ObjectStatus.Modified) {
+                        currentObject.getStatus() === ObjectContext.ObjectStatus.Modified ||
+                        currentObject.getStatus() === ObjectContext.ObjectStatus.Deleted) {
                         _resetObject(currentObject);
                     }
                 }

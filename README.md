@@ -276,7 +276,15 @@ context.hasChanges(person.favoriteSport); // false
   
   - `returns` `object` A reference to this for chaining.
 
+* **`object` create()**
+  Call this when creating a new object. The object will be flagged as 'New' and will automatically be added to the context.
+
+  - `parameter` `string` `type` The type of object to create.
+  - `parameter` `object` `obj` THe object structure to add.
+  - `returns` `object` A reference to this for chaining.
+
 ## Development
 
-* Install Jasmine to run unit tests.
-* Grunt and Karma will be added soon to automate building and testing.
+* Install karma (with the karma-coverage plugin)
+* Install PhantomJS
+* Install Jasmine

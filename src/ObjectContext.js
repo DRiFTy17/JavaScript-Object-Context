@@ -599,12 +599,7 @@ function ObjectContext() {
      */
     this.hasChanges = function(obj) {
         if (obj) {
-            var mappedObject = _getMappedObject(obj);
-            
-            if (!mappedObject) {
-                throw new Error('Invalid object provided.');
-            }
-            
+            var mappedObject = _getMappedObject(obj);        
             return mappedObject.hasChanges();
         }
         else {
@@ -630,10 +625,6 @@ function ObjectContext() {
         }
 
         var mappedObject = _getMappedObject(obj);
-
-        if (!mappedObject) {
-            throw new Error('Invalid object provided.');
-        }
 
         // The hasChildChanges property is set inside hasChanges so we need
         // to call this first.
@@ -809,10 +800,6 @@ function ObjectContext() {
 
         if (obj) {
             mappedObject = _getMappedObject(obj);
-
-            if (!mappedObject) {
-                throw new Error('The object could not be found.');
-            }
         }
 
         var fullChangeset = mappedObject ? mappedObject.changeset : [];
@@ -894,10 +881,6 @@ function ObjectContext() {
     this.rejectChanges = function(obj) {
         if (obj) {
             var mappedObject = _getMappedObject(obj);
-
-            if (mappedObject === null) {
-                throw new Error('Could not determine object index. Reject changes failed.');
-            }
 
             // When rejecting changes for an object that is marked as 'New', we just
             // remove that object as well as any objects that are a parent or root parent

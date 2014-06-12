@@ -1,2 +1,5 @@
 
 test/SpecRunner.html
+coverage/
+karma.js
+node_modules/

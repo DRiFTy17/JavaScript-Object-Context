@@ -459,7 +459,7 @@ describe('ObjectContext', function() {
 
         it('should throw if listener is not a function', function() {
             var subscribeInvalidListener = function() {
-                functioncontext.subscribeChangeListener({property: 'value'});
+                context.subscribeChangeListener({});
             };
 
             expect(subscribeInvalidListener).toThrow();
@@ -493,6 +493,23 @@ describe('ObjectContext', function() {
             context.add({test: 'value'});
 
             expect(context.clear().getObjects().length).toBe(0);
+        });
+    });
+
+    describe('getOriginal', function() {
+        it('should return null when invalid object instance is specified', function() {
+            expect(context.getOriginal({})).toBe(null);
+        });
+    });
+
+    describe('getObjectStatus', function() {
+        it('should throw if invalid object is provided', function() {
+            expect(context.getObjectStatus).toThrow();
+        });
+
+        it('should throw if object doesn\'t exist in context', function() {
+            var invalidObject = function() { context.getObjectStatus({}); };
+            expect(invalidObject).toThrow();
         });
     });
 });

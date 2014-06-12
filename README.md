@@ -277,6 +277,7 @@ context.hasChanges(person.favoriteSport); // false
   - `returns` `object` A reference to this for chaining.
 
 * **`object` create()**
+
   Call this when creating a new object. The object will be flagged as 'New' and will automatically be added to the context.
 
   - `parameter` `string` `type` The type of object to create.

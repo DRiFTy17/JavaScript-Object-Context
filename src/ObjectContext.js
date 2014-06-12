@@ -1026,6 +1026,7 @@ function ObjectContext() {
         };
 
         _addObject(obj, null, null, true);
+        this.evaluate();
 
         return this;
     };

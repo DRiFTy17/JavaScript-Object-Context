@@ -546,5 +546,9 @@ describe('ObjectContext', function() {
             context.create('NewType', { property: 'value' });
             expect(context.getObjects().length).toBe(1);
         });
+
+        it('should return a reference to the context for chaining', function() {
+            expect(context.create('Type', {})).toBe(context);
+        });
     });
 });

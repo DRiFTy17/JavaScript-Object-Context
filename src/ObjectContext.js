@@ -1002,6 +1002,35 @@ function ObjectContext() {
     };
     
     /**
+     * Use this function to create a new instance of a specified type and have it
+     * automatically loaded into the context.
+     *
+     * Type is added to the objects' metadata automatically.
+     *
+     * @public
+     * @param {string} type The type of object we are creating.
+     * @param {object} obj The object to add.
+     * @returns A reference to this for chaining.
+     */
+    this.create = function(type, obj) {
+        if (!type || typeof type !== 'string' || type.toString().trim().length === 0) {
+            throw new Error('Invalid type provided.');
+        }
+        else if (!obj) {
+            throw new Error('Invalid object provided.');
+        }
+
+        obj._objectMeta = {
+            type: type,
+            status: ObjectContext.ObjectStatus.New
+        };
+
+        _addObject(obj, null, null, true);
+
+        return this;
+    };
+
+    /**
      * Output the state and all objects in the context to the console.
      */
     this.log = function() {

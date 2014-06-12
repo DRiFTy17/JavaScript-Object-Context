@@ -314,7 +314,7 @@ describe('ObjectContext', function() {
         it('should throw if object provided does not exists', function() {
             var obj = new Person(1, 'Tiger Woods', 38);
             var deleteUntrackedObject = function() {
-                obj.deleteObject(obj);
+                context.deleteObject(obj);
             };
 
             expect(deleteUntrackedObject).toThrow();
@@ -510,6 +510,41 @@ describe('ObjectContext', function() {
         it('should throw if object doesn\'t exist in context', function() {
             var invalidObject = function() { context.getObjectStatus({}); };
             expect(invalidObject).toThrow();
+        });
+    });
+
+    describe('getObjectsByType', function() {
+        it('should find object correctly', function() {
+            context.add(new Person(1, 'Tiger Woods', 38));
+
+            expect(context.getObjectsByType('Person').length).toBe(1);
+        });
+    });
+
+    describe('create', function() {
+        it('should throw if a type is not provided', function() {
+            expect(context.create).toThrow();
+        });
+
+        it('should throw if a non-empty type is provided', function() {
+            var create = function() {
+                context.create(' ');
+            };
+
+            expect(create).toThrow();
+        });
+
+        it('should throw if an object is not provided', function() {
+            var create = function() {
+                context.create('Person');
+            };
+
+            expect(create).toThrow();
+        });
+
+        it('shoud add object to context', function() {
+            context.create('NewType', { property: 'value' });
+            expect(context.getObjects().length).toBe(1);
         });
     });
 });

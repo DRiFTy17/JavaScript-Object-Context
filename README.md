@@ -284,6 +284,14 @@ context.hasChanges(person.favoriteSport); // false
   - `parameter` `object` `obj` THe object structure to add.
   - `returns` `object` A reference to this for chaining.
 
+* **`array` query(type, [params])**
+
+  Used for querying objects from the context by type. Query parameters are optional to filter the data further.
+  
+  - `parameter` `string` `type` The type of objects to query.
+  - `parameter` `object` `params` `[optional]` An object containing properties and values to search for.
+  - `returns` `array` An array of found objects.
+
 ## Development
 
 * Install karma (with the karma-coverage plugin)

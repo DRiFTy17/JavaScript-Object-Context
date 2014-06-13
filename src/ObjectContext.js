@@ -163,6 +163,12 @@ function ObjectContext() {
              */
             getOriginalStatus: function() {
                 return this.original._objectMeta.status;
+            },
+            /**
+             * Returns the type of this mapped object.
+             */
+            getType: function() {
+                return this.original._objectMeta.type;
             }
         };
     };
@@ -386,6 +392,20 @@ function ObjectContext() {
     };
     
     /**
+     * Returns the native type of the provided object as a string.
+     *
+     * @private
+     * @param {object} obj The object to test.
+     * @returns {string} The type of the object.
+     */
+    var _getNativeType = function(obj) {
+        var funcNameRegex = /function (.{1,})\(/;
+        var results = (funcNameRegex).exec((obj).constructor.toString());
+
+        return (results && results.length > 1) ? results[1] : '';
+    };
+
+    /**
      * Adds an object to the context. Any changes to the properties on this object
      * will trigger the context to have changes and notify any subscribers.
      *
@@ -420,16 +440,20 @@ function ObjectContext() {
         if (!obj._objectMeta) {
             obj._objectMeta = {
                 status: isStatusNew ? ObjectContext.ObjectStatus.New : ObjectContext.ObjectStatus.Unmodified,
-                type: 'Object'
+                type: _getNativeType(obj)
             };
         } 
-        else if (!obj._objectMeta.status) {
+        
+        if (!obj._objectMeta.status) {
             obj._objectMeta.status = ObjectContext.ObjectStatus.Unmodified;
         }
-        else if (!obj._objectMeta.type) {
-            obj._objectMeta.type = 'Object';
+        
+        // Make sure we have a type metadata property
+        if (!obj._objectMeta.type) {
+            obj._objectMeta.type = _getNativeType(obj);
         }
-        else if (obj._objectMeta && obj._objectMeta.status && obj._objectMeta.status === ObjectContext.ObjectStatus.New) {
+        
+        if (obj._objectMeta && obj._objectMeta.status && obj._objectMeta.status === ObjectContext.ObjectStatus.New) {
             isStatusNew = true;
         }
 
@@ -1029,6 +1053,59 @@ function ObjectContext() {
         this.evaluate();
 
         return this;
+    };
+
+    /**
+     * This is a simple query method for fetching arrays of objects from the context.
+     *
+     * Returns an array of objects that exist in the context based on the
+     * provided type and parameters.
+     *
+     * The `params` object should be a map of properties and values to search for
+     * in all objects that are loaded into the context.
+     *
+     * @public
+     * @param {string} type The type of objects to query.
+     * @param {object} params A map of the property and values to search for.
+     */
+    this.query = function(type, params) {
+        if (typeof type !== 'string') {
+            throw new Error('The provided type must be a string.');
+        }
+        else if (params && typeof params !== 'object') {
+            throw new Error('The provided query parameters must be an object.');
+        }
+
+        var foundObjects = [];
+        
+        for (var i=0; i<_objectMap.length; i++) {
+            var currentObj = _objectMap[i];
+            
+            // Make sure that the objects' type matches and if any parameters
+            // were specified, that all of those properties exist in the object.
+            if (currentObj.getType() === type) {
+                if (!params || hasParams(currentObj.current)) {
+                    foundObjects.push(currentObj.current);
+                }
+            }
+        }
+        
+        /**
+         * Local function that is used to test if an object has any of the
+         * properties and values provided in the `params` object. If all
+         * properties exist, then we return true, otherwise false.
+         */
+        function hasParams(obj) {
+            for (var property in params) {
+                if (!obj.hasOwnProperty(property) || obj[property] !== params[property]) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        return foundObjects;
     };
 
     /**

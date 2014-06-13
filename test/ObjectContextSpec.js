@@ -92,6 +92,14 @@ describe('ObjectContext', function() {
             expect(objects[1].parent).toBe(obj);
         });
 
+        it('should add type and status to metadata properties if not exists', function() {
+            var obj = {test: 'value', _objectMeta: {}};
+            context.add(obj);
+
+            expect(obj._objectMeta.hasOwnProperty('type')).toBeTruthy();
+            expect(obj._objectMeta.hasOwnProperty('status')).toBeTruthy();
+        });
+
         it('should have correct parents if is an indirect child', function() {
             var obj = new Person(1, 'Tiger Woods', 38);
             context.add(obj);
@@ -128,6 +136,14 @@ describe('ObjectContext', function() {
             };
 
             expect(addWithInvalidStatus).toThrow();
+        });
+
+        it('should throw if invalid object is provided', function() {
+            var addInvalidObject = function() {
+                context.add(function() {});
+            };
+
+            expect(addInvalidObject).toThrow();
         });
     });
     
@@ -192,6 +208,15 @@ describe('ObjectContext', function() {
             expect(context.hasChanges(obj.favoriteColors[0])).toEqual(true);
             expect(context.hasChildChanges(obj)).toEqual(true);
             expect(context.getObjectStatus(obj)).toEqual(ObjectContext.ObjectStatus.Unmodified);
+        });
+
+        it('should check for listener functions', function() {
+            var listener = jasmine.createSpy('listener spy');
+            context.subscribeChangeListener(listener);
+            context.add(new Person(1, 'Tiger Woods', 38));
+            context.evaluate();
+
+            expect(listener).toHaveBeenCalled();
         });
     });
 
@@ -549,6 +574,169 @@ describe('ObjectContext', function() {
 
         it('should return a reference to the context for chaining', function() {
             expect(context.create('Type', {})).toBe(context);
+        });
+    });
+
+    describe('query', function() {
+        it('should throw if invalid type specified', function() {
+            var invalid = function() {
+                context.query();
+            };
+
+            expect(invalid).toThrow();
+        });
+
+        it('should throw if invalid parameters specified', function() {
+            var invalid = function() {
+                context.query('Type', function() {});
+            };
+
+            expect(invalid).toThrow();
+        });
+
+        it('should return no objects if none have been added', function() {
+            expect(context.query('Object', {prop: 'val'}).length).toBe(0);
+        });
+
+        it('should find object in context with correct type', function() {
+            context.add(new Person(1, 'Tiger Woods', 38));
+            expect(context.query('Person').length).toBe(1);
+        });
+
+        it('should find object in context with correct type and parameters', function() {
+            context.add(new Person(1, 'Tiger Woods', 38));
+            expect(context.query('Person', {name: 'Tiger Woods'}).length).toBe(1); 
+        });
+
+        it('should find object in context with correct type and multiple parameters', function() {
+            context.add(new Person(1, 'Tiger Woods', 38));
+            expect(context.query('Person', {name: 'Tiger Woods', age: 38}).length).toBe(1); 
+        });
+
+        it('should not find object in context with incorrect type', function() {
+            context.add(new Person(1, 'Tiger Woods', 38));
+            expect(context.query('Object', {invalidProperty: 'Tiger Woods'}).length).toBe(0);
+        });
+
+        it('should not find object in context with incorrect property', function() {
+            context.add(new Person(1, 'Tiger Woods', 38));
+            expect(context.query('Person', {invalidProperty: 'Tiger Woods'}).length).toBe(0); 
+        });
+
+        it('should not find object in context with invalid property value', function() {
+            context.add(new Person(1, 'Tiger Woods', 38));
+            expect(context.query('Person', {name: 'Wrong Name'}).length).toBe(0); 
+        });
+    });
+
+    describe('getChangeset', function() {
+        it('should return empty changeset if context is empty', function() {
+            expect(context.getChangeset().length).toBe(0);
+        });
+
+        it('should return a non-empty array if context has changes', function() {
+            var person = new Person(1, 'Tiger Woods', 38);
+            context.add(person);
+            person.name = 'New value';
+            context.evaluate();
+
+            expect(context.getChangeset().length).toBeTruthy();
+        });
+
+        it('should return changeset for specified object', function() {
+            var person = new Person(1, 'Tiger Woods', 38);
+            context.add(person);
+            person.name = 'New value';
+            context.evaluate();
+
+            expect(context.getChangeset(person).length).toBeTruthy();
+        });
+    });
+
+    describe('getUnmodifiedObjects', function() {
+        it('should find only unmodified objects', function() {
+            var tiger = new Person(1, 'Tiger Woods', 38);
+            var jack = new Person(2, 'Jack Nicklaus', 74);
+            context.add(tiger);
+            context.add(jack, true);
+            context.evaluate();
+
+            expect(context.getUnmodifiedObjects(true).length).toBe(1);
+        });
+
+        it('should find unmodified child objects', function() {
+            var tiger = new Person(1, 'Tiger Woods', 38);
+            var jack = new Person(2, 'Jack Nicklaus', 74);
+            context.add(tiger);
+            context.add(jack, true);
+            tiger.favoriteSport.name = 'Disc Golf';
+            context.evaluate();
+
+            expect(context.getUnmodifiedObjects().length).toBe(3);
+        });
+    });
+
+    describe('getModifiedObjects', function() {
+        it('should no objects if context doesn\t have changes', function() {
+            context.evaluate();
+            expect(context.getModifiedObjects().length).toBe(0);
+        });
+
+        it('should find only modified objects', function() {
+            var tiger = new Person(1, 'Tiger Woods', 38);
+            var jack = new Person(2, 'Jack Nicklaus', 74);
+            context.add(tiger);
+            context.add(jack);
+            tiger.name = 'New Name';
+            context.evaluate();
+
+            expect(context.getModifiedObjects(true).length).toBe(1);
+        });
+    });
+
+    describe('getNewObjects', function() {
+        it('should find no new objects', function() {
+            context.add({test: 'value'});
+            context.evaluate();
+
+            expect(context.getNewObjects().length).toBe(0);
+        });
+
+        it('should find new objects', function() {
+            context.add({test: 'value'}, true);
+            context.evaluate();
+
+            expect(context.getNewObjects().length).toBe(1);
+        });
+    });
+
+    describe('getDeletedObjects', function() {
+        it('should find no deleted objects', function() {
+            context.add({test: 'value'});
+            context.evaluate();
+            expect(context.getDeletedObjects().length).toBe(0);
+        });
+
+        it('should find only deleted objects', function() {
+            var tiger = new Person(1, 'Tiger Woods', 38);
+            var jack = new Person(2, 'Jack Nicklaus', 74);
+            context.add(tiger);
+            context.add(jack);
+            context.evaluate();
+            context.deleteObject(tiger);
+
+            expect(context.getDeletedObjects(true).length).toBe(1);
+        });
+
+        it('should find deleted child objects', function() {
+            var tiger = new Person(1, 'Tiger Woods', 38);
+            var jack = new Person(2, 'Jack Nicklaus', 74);
+            context.add(tiger);
+            context.add(jack);
+            context.evaluate();
+            context.deleteObject(tiger);
+
+            expect(context.getDeletedObjects().length).toBe(4);
         });
     });
 });

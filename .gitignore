@@ -3,3 +3,4 @@ test/SpecRunner.html
 coverage/
 karma.js
 node_modules/
+dev_steps.txt

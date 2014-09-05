@@ -130,14 +130,17 @@ context.hasChanges(person.favoriteSport); // false
   - `parameter` `boolean` `isStatusNew` `[optional]` A boolean flag to indicate if this object is to be marked as 'New' or 'Unmodified'. Default value is falsy.
   - `returns` `object` A reference to `this` for chaining.
 
-* **`object` deleteObject(obj, [hardDelete])**
+* **`object` delete(obj, [hardDelete], [canRemoveMetadata])**
 
   Marks the provided object as 'Deleted'. If the object doesn't exist, an exception will be thrown.
   
   If `hardDelete` is true, then the object will be instantly removed from the context. Any children of this object will also   be removed.
   
+  Note: When 'hard-deleting' an object, the `_objectMeta` property is looked at and its status is reverted to its original value before deletion.
+
   - `parameter` `object` `obj` The object to delete.
-  - `parameters` `boolean` `hardDelete` `[optional]` A boolean flag to determine if the object should be removed or just marked as   'Deleted'. The default value is falsy.
+  - `parameter` `boolean` `hardDelete` `[optional]` A boolean flag to determine if the object should be removed or just marked as   'Deleted'. The default value is falsy.
+  - `parameter` `boolean` `canRemoveMetadata` `[optional]` A boolean flag to determine if an objects metadata property is to be removed before deleting.
   - `returns` `object` A reference to `this` for chaining.
   - `throws` Errorif the provided object doesn't exist.
 
@@ -156,12 +159,15 @@ context.hasChanges(person.favoriteSport); // false
   - `returns` `boolean` True if the object has child changes, false otherwise.
   - `throws` Error if the provided object could not be found.
 
-* **`object` clear()**
+* **`object` clear(canRemoveMetadata)**
 
   Removes all currently tracked objects, and resets the state of the context.
   
   This will usually be called when the state of the application is being destroyed, or if any object that are laoded into    the context are no longer relevant.
   
+  Note: When clearing the context, the `_objectMeta` property is looked at and its status is reverted to its original value before it is cleared.
+
+  - `parameter` `boolean` `canRemoveMetadata` Whether or not the objects' metadata property is removed from itself before clear.
   - `returns` `object` A reference to `this` for chaining.
 
 * **`array` getObjects(returnMappedObjects)**

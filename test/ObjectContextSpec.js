@@ -118,14 +118,14 @@ describe('ObjectContext', function() {
             expect(addInvalidObject).toThrow();
         });
         
-        it('should throw if same object added twice', function() {
+        it('should not throw if same object added twice', function() {
             var addSameObjectTwice = function() {
                 var obj = new Person(1, 'Tiger Woods', 38);
                 context.add(obj);
                 context.add(obj);
             };
             
-            expect(addSameObjectTwice).toThrow();
+            expect(addSameObjectTwice).not.toThrow();
         });
         
         it('should throw if object is added with invalid status', function() {
@@ -238,7 +238,7 @@ describe('ObjectContext', function() {
         it('should reset a deleted object correctly', function() {
             var obj = new Person(1, 'Tiger Woods', 38);
             context.add(obj);
-            context.deleteObject(obj);
+            context.delete(obj);
 
             expect(context.rejectChanges(obj).hasChanges()).toEqual(false);
         });
@@ -301,19 +301,19 @@ describe('ObjectContext', function() {
         });
     });
 
-    describe('deleteObject', function() {
+    describe('delete', function() {
         it('should mark a non-new object as deleted', function() {
             var obj = new Person(1, 'Tiger Woods', 38);
             context.add(obj);
 
-            expect(context.deleteObject(obj).getObjectStatus(obj)).toEqual(ObjectContext.ObjectStatus.Deleted);
+            expect(context.delete(obj).getObjectStatus(obj)).toEqual(ObjectContext.ObjectStatus.Deleted);
         });
 
         it('should perform a hard delete of objects with a new status', function() {
             var obj = new Person(1, 'Tiger Woods', 38);
             context.add(obj, true);
 
-            expect(context.deleteObject(obj).getObjects().length).toEqual(0);
+            expect(context.delete(obj).getObjects().length).toEqual(0);
         });
 
         it('should mark child objects as deleted', function() {
@@ -321,7 +321,7 @@ describe('ObjectContext', function() {
             context.add(obj);
             obj.favoriteSport.name = 'Disc Golf';
             context.evaluate();
-            context.deleteObject(obj);
+            context.delete(obj);
 
             expect(context.getObjectStatus(obj.favoriteSport)).toEqual(ObjectContext.ObjectStatus.Deleted);
         });
@@ -331,7 +331,7 @@ describe('ObjectContext', function() {
             context.add(obj);
             obj.favoriteColors[0].name = 'Gold';
             context.evaluate();
-            context.deleteObject(obj);
+            context.delete(obj);
 
             expect(context.getObjectStatus(obj.favoriteColors[0])).toEqual(ObjectContext.ObjectStatus.Deleted);
         });
@@ -339,7 +339,7 @@ describe('ObjectContext', function() {
         it('should throw if object provided does not exists', function() {
             var obj = new Person(1, 'Tiger Woods', 38);
             var deleteUntrackedObject = function() {
-                context.deleteObject(obj);
+                context.delete(obj);
             };
 
             expect(deleteUntrackedObject).toThrow();
@@ -469,7 +469,7 @@ describe('ObjectContext', function() {
         it('should not have changes after accepting deleted objects', function() {
             var obj = new Person(1, 'Tiger Woods', 38);
             context.add(obj);
-            context.deleteObject(obj);
+            context.delete(obj);
 
             expect(context.acceptChanges().hasChanges()).toEqual(false);
         });
@@ -518,6 +518,18 @@ describe('ObjectContext', function() {
             context.add({test: 'value'});
 
             expect(context.clear().getObjects().length).toBe(0);
+        });
+
+        it('should clear context after an add, modify, evaluate, clear, add', function() {
+            var obj = {propOne: true, propTwo: 'test'};
+
+            context.add(obj);
+            obj.propOne = false;
+            context.evaluate();
+            context.clear();
+            context.add(obj);
+
+            expect(context.hasChanges()).toBe(false);
         });
     });
 
@@ -723,7 +735,7 @@ describe('ObjectContext', function() {
             context.add(tiger);
             context.add(jack);
             context.evaluate();
-            context.deleteObject(tiger);
+            context.delete(tiger);
 
             expect(context.getDeletedObjects(true).length).toBe(1);
         });
@@ -734,7 +746,7 @@ describe('ObjectContext', function() {
             context.add(tiger);
             context.add(jack);
             context.evaluate();
-            context.deleteObject(tiger);
+            context.delete(tiger);
 
             expect(context.getDeletedObjects().length).toBe(4);
         });

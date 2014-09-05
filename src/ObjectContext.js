@@ -363,7 +363,7 @@ function ObjectContext() {
         var mappedObjectIndex = _getMapIndex(obj);
 
         if (mappedObjectIndex === null) {
-            throw new Error('Invalid object index.');
+            throw new Error('Object not found.');
         }
 
         return _objectMap[mappedObjectIndex];
@@ -434,7 +434,7 @@ function ObjectContext() {
         }
 
         if (self.doesObjectExist(obj)) {
-            throw new Error('Object already exists in the context.');
+            return self;
         }
 
         if (!obj._objectMeta) {
@@ -565,7 +565,7 @@ function ObjectContext() {
      * @param {boolean} hardDelete Whether or not to remove the object from the context, or just mark it for deletion.
      * @returns {object} A reference of this for method chaining.
      */
-    this.deleteObject = function(obj, hardDelete) {
+    this.delete = function(obj, hardDelete, canRemoveMetadata) {
         var index = _getMapIndex(obj);
 
         if (index === null) {
@@ -583,6 +583,13 @@ function ObjectContext() {
             if (_objectMap[index].getStatus() === ObjectContext.ObjectStatus.New &&
                 _objectMap[index].parent && _objectMap[index].parent instanceof Array) {
                 _objectMap[index].parent.splice(_objectMap[index].parent.indexOf(_objectMap[index].current), 1);
+            }
+
+            if (canRemoveMetadata) {
+                delete _objectMap[index].current._objectMeta;
+            }
+            else {
+                _objectMap[index].setStatus(_objectMap[index].getOriginalStatus());
             }
 
             _objectMap.splice(index, 1);
@@ -664,10 +671,22 @@ function ObjectContext() {
      * and any object that are laoded into the context are no longer relevant.
      * 
      * @public
+     * @param {boolean} canRemoveMetadata Whether or not the '_objectMeta' property is removed from the object.
      * @returns {object} A reference of this for method chaining.
      */
-    this.clear = function() {
-        _objectMap = [];
+    this.clear = function(canRemoveMetadata) {
+        // We need to reset the status of the object to it's original status.
+        for (var i=0; i<_objectMap.length; i++) {
+            if (canRemoveMetadata) {
+                delete _objectMap[i].current._objectMeta;
+            } 
+            else {
+                _objectMap[i].setStatus(_objectMap[i].getOriginalStatus());
+            }
+        }
+
+        // Truncate the array
+        _objectMap.length = 0;
 
         return this;
     };
@@ -915,7 +934,7 @@ function ObjectContext() {
                     if (currentObject === mappedObject || 
                         currentObject.rootParent === mappedObject.current ||
                         currentObject.parent === mappedObject.current) {
-                        self.deleteObject(currentObject.current, true);
+                        self.delete(currentObject.current, true);
                     }
                 };
             }
@@ -941,7 +960,7 @@ function ObjectContext() {
                         _resetObject(mappedObject);
                         break;
                     case ObjectContext.ObjectStatus.New:
-                        self.deleteObject(mappedObject.current, true);
+                        self.delete(mappedObject.current, true);
                         break;
                 }
             }

@@ -6,7 +6,7 @@
     function($scope, objectContext) {
       // Get/create an instance of the object context
       var context = objectContext.getInstance();
-      
+      $scope.context = context;
       // Create a person object and add it to the context
       $scope.person = new Person(1, 'Kieran', 25);
       context.add($scope.person);
@@ -27,6 +27,10 @@
           context.log();
       };
       
+      $scope.onGetChangeset = function() {
+          console.log(context.getChangeset());
+      };
+
       /**
        * Handles submit button clicks.
        * 
@@ -35,7 +39,7 @@
        */
       $scope.onApplyChanges = function() {
           if ($scope.person) {
-              console.log('Changeset: ', context.getChangeset($scope.person, true));
+              console.log('Changeset: ', context.getObjectChangeset($scope.person, true));
           }
 
           context.acceptChanges();
@@ -76,7 +80,7 @@
         var objects = context.getObjects();
         
         for (var i=0; i<objects.length; i++) {
-            if (objects[i]._objectMeta.type === 'Person') {
+            if (context.getObjectType(objects[i]) === 'Person') {
                 people.push(objects[i]);
             }
         }
@@ -93,8 +97,7 @@
        */
       $scope.onLoad = function() {
           var newPerson = new Person(new Date().getTime(), "Brad", 51);
-          newPerson._objectMeta.status = ObjectContext.ObjectStatus.New;
-          context.add(newPerson);
+          context.add(newPerson, true);
           
           $scope.person = newPerson;
       };
@@ -119,11 +122,11 @@
        * Removes the currently selected person from the context.
        */ 
       $scope.onRemove = function(object) {
-        context.deleteObject(object);
+        context.delete(object);
       };
       
       $scope.onRemoveColor = function(color) {
-          context.deleteObject(color);
+          context.delete(color);
       };
       
       /**

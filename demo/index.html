@@ -22,6 +22,7 @@
                 <hr/>
                 <div>
                     <button class="btn btn-primary" ng-click="onLogContext()">Log Context</button>
+                    <button class="btn btn-primary" ng-click="onGetChangeset()">Get Changeset</button>
                     <button class="btn btn-warning" ng-click="onRejectAll()">Reject All Changes</button>
                     <button class="btn btn-danger" ng-click="onClear()">Clear Context</button>
                     <button class="btn btn-success" ng-click="onApplyChanges()" ng-disabled="!hasChanges">Apply Changes</button>
@@ -55,7 +56,7 @@
                                     <button class="btn btn-danger" ng-click="onRemove(object)">Delete</button>
                                 </td>
                                 <td style="vertical-align: middle;">{{object.name}}</td>
-                                <td style="vertical-align: middle; width: 100px;">{{object._objectMeta.status}}</td>
+                                <td style="vertical-align: middle; width: 100px;">{{context.getObjectStatus(object)}}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -94,7 +95,7 @@
                             <label>Favorite Colors (array of objects):</label>
                             <table class="table table-bordered">
                                 <tbody>
-                                    <tr ng-repeat="color in person.favoriteColors" ng-if="color._objectMeta.status != 'Deleted'">
+                                    <tr ng-repeat="color in person.favoriteColors" ng-if="context.getObjectStatus(color) != 'Deleted'">
                                         <td style="text-align: center; vertical-align: middle; font-weight: bold;">{{$index+1}}</td>
                                         <td>
                                             <input type="text" class="form-control" ng-model="color.name" />  

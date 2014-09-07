@@ -75,9 +75,9 @@ function ObjectContext() {
      */
     var _doesObjectHaveChanges = function(obj) {
         return obj.changeset.length > 0 ||
-               obj.getStatus() === ObjectContext.ObjectStatus.New ||
-               obj.getStatus() === ObjectContext.ObjectStatus.Modified ||
-               obj.getStatus() === ObjectContext.ObjectStatus.Deleted;
+               obj.status === ObjectContext.ObjectStatus.New ||
+               obj.status === ObjectContext.ObjectStatus.Modified ||
+               obj.status === ObjectContext.ObjectStatus.Deleted;
     };
    
     /**
@@ -91,7 +91,7 @@ function ObjectContext() {
      * @param {object} rootParent The root parent that this object is in the hierarchy of.
      * @param {object} parent The direct parent of this object.
      */
-    var _createMappedObject = function(obj, rootParent, parent) {
+    var _createMappedObject = function(obj, status, type, rootParent, parent) {
         return {
             /**
              * The current state of the object.
@@ -147,29 +147,21 @@ function ObjectContext() {
              */
             hasChildChanges: false,
             /**
-             * Shortcut method to fetch the status of the object that we are tracking
+             * Holds the current status of the object we are tracking
              */
-            getStatus: function() { 
-                return this.current._objectMeta.status;
-            },
+            status: status,
             /**
-             * Shortcut method to set a tracked objects
+             * Holds the original status of the object we are tracking
              */
-            setStatus: function(newStatus) {
-                this.current._objectMeta.status = newStatus;
-            },
+            originalStatus: status,
             /**
-             * Shortcut method to fetch the current objects original status
+             * The type of the object we are tracking
              */
-            getOriginalStatus: function() {
-                return this.original._objectMeta.status;
-            },
+            type: type,
             /**
-             * Returns the type of this mapped object.
+             * Look at the ExtensionData property to get the keys of the object.
              */
-            getType: function() {
-                return this.original._objectMeta.type;
-            }
+            key: obj.ExtensionData && obj.ExtensionData.Key && obj.ExtensionData.Key.length ? obj.ExtensionData.Key : null
         };
     };
     
@@ -278,21 +270,27 @@ function ObjectContext() {
         }
 
         if (existingChangeEntry !== null) {
-            // Update the existing changeset entry current value
-            existingChangeEntry.currentValue = obj.current[property];
+            // Check if the original value is different to the new value in the object
+            if (existingChangeEntry.oldValue != obj.current[property]) {
+                // Update the existing changeset entry current value
+                existingChangeEntry.newValue = obj.current[property];
+            }
+            else {
+                // Since the object was reset to its original value, we remove it from the changeset
+                obj.changeset.splice(obj.changeset.indexOf(existingChangeEntry), 1);
+            }
         }
         else {
             // Add a new changeset entry
             obj.changeset.push({
                 propertyName: property.toString(),
-                originalValue: obj.original[property],
-                currentValue: obj.current[property],
-                object: obj.current
+                oldValue: obj.original[property],
+                newValue: obj.current[property]
             });
 
             // Update the object status to modified only if it is currently unmodified
-            if (obj.getStatus() === ObjectContext.ObjectStatus.Unmodified) {
-                obj.setStatus(ObjectContext.ObjectStatus.Modified);
+            if (obj.status === ObjectContext.ObjectStatus.Unmodified) {
+                obj.status = ObjectContext.ObjectStatus.Modified;
             }
         }
     };
@@ -326,9 +324,10 @@ function ObjectContext() {
                     }
                 }
 
-                if ((obj.current[property].length - deletedObjectCount) !== obj.original[property].length) {
-                    _setPropertyChanged(obj, property);
-                }
+                // Removed (9/5/14) - No longer adding array properties to changeset
+                // if ((obj.current[property].length - deletedObjectCount) !== obj.original[property].length) {
+                //     _setPropertyChanged(obj, property);
+                // }
             }
             else if (typeof obj.current[property] !== 'object' && obj.current[property] !== obj.original[property]) {
                 _setPropertyChanged(obj, property);
@@ -383,7 +382,7 @@ function ObjectContext() {
         for (var i=0; i<_objectMap.length; i++) {
             var mappedObject = _objectMap[i];
 
-            if (mappedObject.getStatus() === status && (!parentsOnly || (parentsOnly === true && !mappedObject.rootParent))) {
+            if (mappedObject.status === status && (!parentsOnly || (parentsOnly === true && !mappedObject.rootParent))) {
                 objects.push(_objectMap[i].current);
             }
         }
@@ -425,11 +424,10 @@ function ObjectContext() {
      * @returns {object} A reference of this for method chaining.
      */
     var _addObject = function(obj, rootParent, parent, isStatusNew) {
-        if (!obj) {
-            throw new Error('Invalid object specified.');
-        }
+        var status = isStatusNew ? ObjectContext.ObjectStatus.New : ObjectContext.ObjectStatus.Unmodified;
+        var type = _getNativeType(obj);
 
-        if (typeof obj !== 'object' || obj instanceof Array) {
+        if (!obj || typeof obj !== 'object' || obj instanceof Array) {
             throw new Error('Invalid object specified. The value provided must be of type "object".');
         }
 
@@ -437,44 +435,12 @@ function ObjectContext() {
             return self;
         }
 
-        if (!obj._objectMeta) {
-            obj._objectMeta = {
-                status: isStatusNew ? ObjectContext.ObjectStatus.New : ObjectContext.ObjectStatus.Unmodified,
-                type: _getNativeType(obj)
-            };
-        } 
-        
-        if (!obj._objectMeta.status) {
-            obj._objectMeta.status = ObjectContext.ObjectStatus.Unmodified;
-        }
-        
-        // Make sure we have a type metadata property
-        if (!obj._objectMeta.type) {
-            obj._objectMeta.type = _getNativeType(obj);
-        }
-        
-        if (obj._objectMeta && obj._objectMeta.status && obj._objectMeta.status === ObjectContext.ObjectStatus.New) {
-            isStatusNew = true;
-        }
-
-        if (obj._objectMeta.status !== ObjectContext.ObjectStatus.New &&
-            obj._objectMeta.status !== ObjectContext.ObjectStatus.Unmodified &&
-            obj._objectMeta.status !== ObjectContext.ObjectStatus.Modified &&
-            obj._objectMeta.status !== ObjectContext.ObjectStatus.Deleted) {
-            throw new Error(_stringFormat('Invalid object status: {0}', obj._objectMeta.status));
-        }
-
-        // Check if we were told to add this object as a 'New' object
-        if (isStatusNew && obj._objectMeta.status !== ObjectContext.ObjectStatus.New) {
-            obj._objectMeta.status = ObjectContext.ObjectStatus.New;
-        }
-
-        _objectMap.push(_createMappedObject(obj, rootParent, parent));
+        _objectMap.push(_createMappedObject(obj, status, type, rootParent, parent));
         _addChildren(obj, rootParent, isStatusNew);
 
         return self;
     };
-    
+
     /**
      * This is the change tracking engine.
      *
@@ -493,7 +459,7 @@ function ObjectContext() {
             var mappedObj = _objectMap[i];
 
             // If the object is marked as deleted then we can skip it
-            if (mappedObj.getStatus() === ObjectContext.ObjectStatus.Deleted) {
+            if (mappedObj.status === ObjectContext.ObjectStatus.Deleted) {
                 continue;
             }
 
@@ -565,7 +531,7 @@ function ObjectContext() {
      * @param {boolean} hardDelete Whether or not to remove the object from the context, or just mark it for deletion.
      * @returns {object} A reference of this for method chaining.
      */
-    this.delete = function(obj, hardDelete, canRemoveMetadata) {
+    this.delete = function(obj, hardDelete) {
         var index = _getMapIndex(obj);
 
         if (index === null) {
@@ -574,28 +540,21 @@ function ObjectContext() {
 
         // If this object has a status of new (then just remove the object completely)
         // along with any of its children.
-        if (_objectMap[index].getStatus() === ObjectContext.ObjectStatus.New) {
+        if (_objectMap[index].status === ObjectContext.ObjectStatus.New) {
             hardDelete = true;
         }
 
         // Are we removing the object or just marking it as deleted
         if (hardDelete === true) {
-            if (_objectMap[index].getStatus() === ObjectContext.ObjectStatus.New &&
+            if (_objectMap[index].status === ObjectContext.ObjectStatus.New &&
                 _objectMap[index].parent && _objectMap[index].parent instanceof Array) {
                 _objectMap[index].parent.splice(_objectMap[index].parent.indexOf(_objectMap[index].current), 1);
             }
 
-            if (canRemoveMetadata) {
-                delete _objectMap[index].current._objectMeta;
-            }
-            else {
-                _objectMap[index].setStatus(_objectMap[index].getOriginalStatus());
-            }
-
             _objectMap.splice(index, 1);
         }
-        else if (_objectMap[index].getStatus() !== ObjectContext.ObjectStatus.New) {
-            _objectMap[index].setStatus(ObjectContext.ObjectStatus.Deleted);
+        else if (_objectMap[index].status !== ObjectContext.ObjectStatus.New) {
+            _objectMap[index].status = ObjectContext.ObjectStatus.Deleted;
         }
 
         // Remove all objects that are a child of this object
@@ -610,8 +569,8 @@ function ObjectContext() {
                 if (hardDelete === true) {
                     _objectMap.splice(i, 1);
                 }
-                else if (currentObject.getStatus() !== ObjectContext.ObjectStatus.New) {
-                    currentObject.setStatus(ObjectContext.ObjectStatus.Deleted);
+                else if (currentObject.status !== ObjectContext.ObjectStatus.New) {
+                    currentObject.status = ObjectContext.ObjectStatus.Deleted;
                 }
             }
         }
@@ -671,23 +630,10 @@ function ObjectContext() {
      * and any object that are laoded into the context are no longer relevant.
      * 
      * @public
-     * @param {boolean} canRemoveMetadata Whether or not the '_objectMeta' property is removed from the object.
      * @returns {object} A reference of this for method chaining.
      */
-    this.clear = function(canRemoveMetadata) {
-        // We need to reset the status of the object to it's original status.
-        for (var i=0; i<_objectMap.length; i++) {
-            if (canRemoveMetadata) {
-                delete _objectMap[i].current._objectMeta;
-            } 
-            else {
-                _objectMap[i].setStatus(_objectMap[i].getOriginalStatus());
-            }
-        }
-
-        // Truncate the array
+    this.clear = function() {
         _objectMap.length = 0;
-
         return this;
     };
 
@@ -762,7 +708,7 @@ function ObjectContext() {
         var objects = [];
 
         for (var i = 0; i < _objectMap.length; i++) {
-            if (_objectMap[i].current._objectMeta.type === requestedType) {
+            if (_objectMap[i].type === requestedType) {
                 objects.push(_objectMap[i].current);
             }
         }
@@ -791,7 +737,7 @@ function ObjectContext() {
         for (var i=_objectMap.length-1; i>=0; i--) {
             var currentObject = _objectMap[i];
 
-            if (currentObject.getStatus() === ObjectContext.ObjectStatus.Deleted &&
+            if (currentObject.status === ObjectContext.ObjectStatus.Deleted &&
                 currentObject.parent && currentObject.parent instanceof Array) {
                 currentObject.parent.splice(currentObject.parent.indexOf(currentObject.current), 1);
                 _objectMap.splice(i, 1);
@@ -807,15 +753,15 @@ function ObjectContext() {
         for (var i=_objectMap.length-1; i>=0; i--) {
             var currentObject = _objectMap[i];
 
-            if (currentObject.getStatus() !== ObjectContext.ObjectStatus.Unmodified) {
+            if (currentObject.status !== ObjectContext.ObjectStatus.Unmodified) {
                 // If this object is marked as deleted, then we remove it from the context
-                if (currentObject.getStatus() === ObjectContext.ObjectStatus.Deleted) {
+                if (currentObject.status === ObjectContext.ObjectStatus.Deleted) {
                     _objectMap.splice(i, 1);
                 }
                 else {
                     // This object was either New or Modified so set it to an Unmodified state
                     currentObject.changeset = [];
-                    currentObject.setStatus(ObjectContext.ObjectStatus.Unmodified);
+                    currentObject.status = ObjectContext.ObjectStatus.Unmodified;
                     currentObject.original = _deepCopy(currentObject.current);
                 }
             }
@@ -827,45 +773,57 @@ function ObjectContext() {
     };
     
     /**
-     * Returns the changeset for a specified mapped object reference. If an object
-     * was not provided, then we return the changeset for all objects.
-     * 
-     * If includeChildren is passed along with an obeject, then we fetch the changsets
-     * for all objects in the context, that have the provided object as a parent.
+     * Returns the changeset for a specified mapped object reference.
      * 
      * @public
      * @param {object} obj The object to check for changes against.
-     * @param {boolean} includeChildren Pass true to include child changesets.
-     * @returns {object} An object with the properties that have changed on the current object.
+     * @returns {object} An object with the properties that have changed on the provided object 'obj'.
      */
-    this.getChangeset = function(obj, includeChildren) {
+    this.getObjectChangeset = function(obj) {
+        if (!obj) {
+            throw new Error('Invalid object provided. You must provided an object.');
+        }
+
         var mappedObject = null;
+        mappedObject = _getMappedObject(obj);
 
-        if (obj) {
-            mappedObject = _getMappedObject(obj);
+        if (!mappedObject) {
+            throw new Error('Invalid object provided. Changeset could not be found.');
         }
 
-        var fullChangeset = mappedObject ? mappedObject.changeset : [];
+        return mappedObject.changeset;
+    };
 
-        if (!obj || (includeChildren && !mappedObject.rootParent)) {
-            for (var i=0; i<_objectMap.length; i++) {
-                var current = _objectMap[i];
+    /**
+     * Returns a changeset for the entire context. This changeset is an object that has three properties containing arrays:
+     *     - New: Objects with a change status of 'New'.
+     *     - Unmodified: Object with a change status of 'Unmodified'.
+     *     - Deleted: Objects with a change status of 'Deleted'.
+     *
+     * Each object in the collections contain its type and an array of changed properties.
+     *
+     * @public
+     * @returns {object} An object containing an array of the changed object separated by change status.
+     */
+    this.getChangeset = function() {
+        var changeset = {};
+        changeset[ObjectContext.ObjectStatus.New] = [];
+        changeset[ObjectContext.ObjectStatus.Modified] = [];
+        changeset[ObjectContext.ObjectStatus.Deleted] = [];
 
-                if (obj) {
-                    if (current === mappedObject) {
-                        continue;
-                    }
-                    else if (current.rootParent === mappedObject.current && current.changeset.length > 0) {
-                        fullChangeset = fullChangeset.concat(current.changeset);
-                    }
-                }
-                else {
-                    fullChangeset = fullChangeset.concat(current.changeset);
-                }
-            }
+        for (var i=0; i<_objectMap.length; i++) {
+            var currentObj = _objectMap[i];
+
+            if (currentObj.status === ObjectContext.ObjectStatus.Unmodified) continue;
+
+            changeset[currentObj.status].push({
+                type: currentObj.type,
+                changeset: currentObj.changeset,
+                object: _deepCopy(currentObj.current)
+            });
         }
 
-        return fullChangeset;
+        return changeset;
     };
     
     /**
@@ -906,7 +864,28 @@ function ObjectContext() {
             throw new Error(_stringFormat('Invalid object index: {0}', mappedObjectIndex));
         }
 
-        return _objectMap[mappedObjectIndex].getStatus();
+        return _objectMap[mappedObjectIndex].status;
+    };
+
+    /**
+     * Gets an objects type for the specified object reference.
+     * 
+     * @public
+     * @param {object} obj The object to search for.
+     * @returns {string} The status of the requested object.
+     */
+    this.getObjectType = function(obj) {
+        if (!obj) {
+            throw new Error('Invalid object provided.');
+        }
+
+        var mappedObjectIndex = _getMapIndex(obj);
+
+        if (mappedObjectIndex === null) {
+            throw new Error(_stringFormat('Invalid object index: {0}', mappedObjectIndex));
+        }
+
+        return _objectMap[mappedObjectIndex].type;
     };
 
     /**
@@ -927,7 +906,7 @@ function ObjectContext() {
 
             // When rejecting changes for an object that is marked as 'New', we just
             // remove that object as well as any objects that are a parent or root parent
-            if (mappedObject.getStatus() === ObjectContext.ObjectStatus.New) {
+            if (mappedObject.status === ObjectContext.ObjectStatus.New) {
                 for (var i=_objectMap.length-1; i>=0; i--) {
                     var currentObject = _objectMap[i];
                     
@@ -943,9 +922,12 @@ function ObjectContext() {
                     var currentObject = _objectMap[i];
 
                     if (!currentObject.rootParent ||
-                        currentObject.getStatus() === ObjectContext.ObjectStatus.Modified ||
-                        currentObject.getStatus() === ObjectContext.ObjectStatus.Deleted) {
+                        currentObject.status === ObjectContext.ObjectStatus.Modified ||
+                        currentObject.status === ObjectContext.ObjectStatus.Deleted) {
                         _resetObject(currentObject);
+                    }
+                    else if (currentObject.status === ObjectContext.ObjectStatus.New){
+                        self.delete(currentObject.current, true);
                     }
                 }
             }
@@ -954,7 +936,7 @@ function ObjectContext() {
             for (var i=_objectMap.length-1; i>=0; i--) {
                 var mappedObject = _objectMap[i];
 
-                switch(mappedObject.getStatus()) {
+                switch(mappedObject.status) {
                     case ObjectContext.ObjectStatus.Modified:
                     case ObjectContext.ObjectStatus.Deleted:
                         _resetObject(mappedObject);
@@ -987,7 +969,7 @@ function ObjectContext() {
                 for (var j=ary.length-1; j>=0; j--) {
                     var mappedObject = _getMappedObject(ary[j]);
 
-                    switch(mappedObject.getStatus()) {
+                    switch(mappedObject.status) {
                         case ObjectContext.ObjectStatus.Unmodified:
                             continue;
                             break;
@@ -1007,7 +989,7 @@ function ObjectContext() {
             }
         }
 
-        obj.setStatus(obj.getOriginalStatus());
+        obj.status = obj.originalStatus;
         obj.changeset = [];
         obj.hasChildChanges = false;
     };
@@ -1043,36 +1025,6 @@ function ObjectContext() {
        
        return _changeListeners.length;
     };
-    
-    /**
-     * Use this function to create a new instance of a specified type and have it
-     * automatically loaded into the context.
-     *
-     * Type is added to the objects' metadata automatically.
-     *
-     * @public
-     * @param {string} type The type of object we are creating.
-     * @param {object} obj The object to add.
-     * @returns A reference to this for chaining.
-     */
-    this.create = function(type, obj) {
-        if (!type || typeof type !== 'string' || type.toString().trim().length === 0) {
-            throw new Error('Invalid type provided.');
-        }
-        else if (!obj) {
-            throw new Error('Invalid object provided.');
-        }
-
-        obj._objectMeta = {
-            type: type,
-            status: ObjectContext.ObjectStatus.New
-        };
-
-        _addObject(obj, null, null, true);
-        this.evaluate();
-
-        return this;
-    };
 
     /**
      * This is a simple query method for fetching arrays of objects from the context.
@@ -1102,7 +1054,7 @@ function ObjectContext() {
             
             // Make sure that the objects' type matches and if any parameters
             // were specified, that all of those properties exist in the object.
-            if (currentObj.getType() === type) {
+            if (currentObj.type === type) {
                 if (!params || hasParams(currentObj.current)) {
                     foundObjects.push(currentObj.current);
                 }
@@ -1131,7 +1083,10 @@ function ObjectContext() {
      * Output the state and all objects in the context to the console.
      */
     this.log = function() {
-        console.group('ObjectContext');
+        var date = new Date();
+        var timestamp = date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds();
+
+        console.group('ObjectContext: ' + timestamp);
 
         console.log('Has Changes: ' + this.hasChanges());
         console.log('Tracked Objects: ' + _objectMap.length);

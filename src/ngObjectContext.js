@@ -23,6 +23,13 @@ angular.module('ngObjectContext', []).provider('objectContext', function() {
     var _isSingleton = true;
 
     /**
+     * The URI to use when making service requests.
+     *
+     * @private
+     */
+    var _serviceUri = null;
+
+    /**
      * This will hold the one singleton instance of this class if '_isSingleton'
      * is set to true.
      * 
@@ -41,10 +48,24 @@ angular.module('ngObjectContext', []).provider('objectContext', function() {
     };
 
     /**
+     * Configures the context to make requests to the specified URI.
+     *
+     * @public
+     * @param {string} uri
+     */
+    this.setServiceUri = function(uri) {
+        if (uri.substring(uri.length-1) !== '/') {
+            uri += '/';
+        }
+
+        _serviceUri = uri;
+    };
+
+    /**
      * The domain context factory function.
      */
-    this.$get = ['$rootScope',
-        function($rootScope) {
+    this.$get = ['$rootScope', '$q', '$http',
+        function($rootScope, $q, $http) {
             /**
              * An array holding registered $digest watchers and the context 
              * instance they are registered to.
@@ -151,11 +172,49 @@ angular.module('ngObjectContext', []).provider('objectContext', function() {
                 }
             };
 
+            /**
+             * 
+             */
+            var _load = function(action, method, params, contextInstance) {
+                if (!_instance && !contextInstance) {
+                    throw new Error('Load error: Context has not been initialized.');
+                }
+
+                var context = contextInstance || _instance;
+                var deferred = $q.defer();
+
+                var config = {
+                    method: method,
+                    url: _serviceUri ? _serviceUri + action : action, 
+                    params: params
+                };
+
+                $http(config).then(
+                    function(data, status, headers, config) {
+                        for (var i=0; i<data.length; i++) {
+                            context.add(data[i]);
+                        }
+
+                        deferred.resolve(data);
+                    }, 
+                    function(data, status, headers, config) {
+                        console.error(data);
+                        console.error(status);
+                        console.error(headers);
+                        console.error(config);
+                        deferred.reject();
+                    }
+                );
+
+                return deferred.promise;
+            };
+
             return {
                 create: _create,
                 getInstance: _getInstance,
                 stopAutoWatch: _stopAutoWatch,
-                startAutoWatch: _startAutoWatch
+                startAutoWatch: _startAutoWatch,
+                load: _load
             };
 
         }

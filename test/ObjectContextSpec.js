@@ -9,10 +9,6 @@ describe('ObjectContext', function() {
         this.age = age;
         this.favoriteSport = {name: 'Golf'};
         this.favoriteColors = [{name: 'Red'}, {name: 'Blue'}];
-        this._objectMeta = {
-            status: ObjectContext.ObjectStatus.Unmodified, 
-            type: 'Person'
-        };
     }
     
     beforeEach(function() {
@@ -92,14 +88,6 @@ describe('ObjectContext', function() {
             expect(objects[1].parent).toBe(obj);
         });
 
-        it('should add type and status to metadata properties if not exists', function() {
-            var obj = {test: 'value', _objectMeta: {}};
-            context.add(obj);
-
-            expect(obj._objectMeta.hasOwnProperty('type')).toBeTruthy();
-            expect(obj._objectMeta.hasOwnProperty('status')).toBeTruthy();
-        });
-
         it('should have correct parents if is an indirect child', function() {
             var obj = new Person(1, 'Tiger Woods', 38);
             context.add(obj);
@@ -127,16 +115,6 @@ describe('ObjectContext', function() {
             
             expect(addSameObjectTwice).not.toThrow();
         });
-        
-        it('should throw if object is added with invalid status', function() {
-            var addWithInvalidStatus = function() {
-                var obj = new Person(1, 'Tiger Woods', 38);
-                obj._objectMeta.status = 'fake status';
-                context.add(obj);
-            };
-
-            expect(addWithInvalidStatus).toThrow();
-        });
 
         it('should throw if invalid object is provided', function() {
             var addInvalidObject = function() {
@@ -159,7 +137,7 @@ describe('ObjectContext', function() {
             context.evaluate();
             
             expect(context.hasChanges()).toEqual(true);
-            expect(context.getChangeset(obj).length).toEqual(1);
+            expect(context.getObjectChangeset(obj).length).toEqual(1);
         });
 
         it('should no changes if object hasn\'t changed', function() {
@@ -558,37 +536,6 @@ describe('ObjectContext', function() {
         });
     });
 
-    describe('create', function() {
-        it('should throw if a type is not provided', function() {
-            expect(context.create).toThrow();
-        });
-
-        it('should throw if a non-empty type is provided', function() {
-            var create = function() {
-                context.create(' ');
-            };
-
-            expect(create).toThrow();
-        });
-
-        it('should throw if an object is not provided', function() {
-            var create = function() {
-                context.create('Person');
-            };
-
-            expect(create).toThrow();
-        });
-
-        it('shoud add object to context', function() {
-            context.create('NewType', { property: 'value' });
-            expect(context.getObjects().length).toBe(1);
-        });
-
-        it('should return a reference to the context for chaining', function() {
-            expect(context.create('Type', {})).toBe(context);
-        });
-    });
-
     describe('query', function() {
         it('should throw if invalid type specified', function() {
             var invalid = function() {
@@ -641,27 +588,44 @@ describe('ObjectContext', function() {
         });
     });
 
+    describe('getObjectChangeset', function() {
+        it('should throw if no object is specified', function() {
+            expect(context.getObjectChangeset).toThrow();
+        });
+    });
+
     describe('getChangeset', function() {
         it('should return empty changeset if context is empty', function() {
-            expect(context.getChangeset().length).toBe(0);
+            var changesetLength = context.getChangeset()[ObjectContext.ObjectStatus.New].length + 
+                                  context.getChangeset()[ObjectContext.ObjectStatus.Modified].length + 
+                                  context.getChangeset()[ObjectContext.ObjectStatus.Deleted].length;
+            expect(changesetLength).toBe(0);
         });
 
-        it('should return a non-empty array if context has changes', function() {
+        it('should add to "New" changeset array', function() {
             var person = new Person(1, 'Tiger Woods', 38);
-            context.add(person);
-            person.name = 'New value';
+            context.add(person, true);
             context.evaluate();
 
-            expect(context.getChangeset().length).toBeTruthy();
+            expect(context.getChangeset()[ObjectContext.ObjectStatus.New].length).toBeTruthy();
         });
 
-        it('should return changeset for specified object', function() {
+        it('should add to "Modified" changeset array', function() {
             var person = new Person(1, 'Tiger Woods', 38);
             context.add(person);
-            person.name = 'New value';
+            person.name = 'Tiger Woods is Awesome.';
             context.evaluate();
 
-            expect(context.getChangeset(person).length).toBeTruthy();
+            expect(context.getChangeset()[ObjectContext.ObjectStatus.Modified].length).toBeTruthy();
+        });
+
+        it('should add to "Deleted" changeset array', function() {
+            var person = new Person(1, 'Tiger Woods', 38);
+            context.add(person);
+            context.delete(person);
+            context.evaluate();
+
+            expect(context.getChangeset()[ObjectContext.ObjectStatus.Deleted].length).toBeTruthy();
         });
     });
 

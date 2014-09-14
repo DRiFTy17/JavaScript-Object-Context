@@ -282,9 +282,7 @@ describe('ObjectContext', function() {
             var person = new Person(1, 'Tiger Woods', 38);
             context.add(person);
             
-            //person.favoriteColors.pop();
             context.delete(person.favoriteColors[0]);
-            //person.favoriteColors.push({name: 'Salmon'});
 
             var newColor = {name: 'Bright Pink'};
             context.add(newColor, true);
@@ -306,6 +304,15 @@ describe('ObjectContext', function() {
             context.rejectChanges();
 
             expect(context.hasChanges()).toEqual(false);
+        });
+
+        it('should reject changes on objects with arrays using push and pop methods', function() {
+            var obj = {test: true, ary: [1,2,3]};
+            context.add(obj);
+            obj.ary.pop();
+            context.evaluate();
+
+            expect(context.rejectChanges().hasChanges()).toBe(false);
         });
     });
 
@@ -790,6 +797,49 @@ describe('ObjectContext', function() {
             context.add(obj);
 
             expect(context.getObjectType(obj).trim().length).toBeGreaterThan(0);
+        });
+    });
+
+    describe('load', function() {
+        it('should throw if invalid action is provided', function() {
+            var throwMe = function() {
+                context.load();
+            };
+
+            expect(throwMe).toThrow();
+        });
+
+        it('should throw if invalid request type is provided', function() {
+            var throwMe = function() {
+                context.load('Test', 'PUT', {}, function() {});
+            };
+
+            expect(throwMe).toThrow();
+        });
+
+        it('should throw if no callback is provided', function() {
+            var throwMe = function() {
+                context.load('Test', 'GET', {});
+            };
+
+            expect(throwMe).toThrow();
+        });
+
+        it('should throw if invalid callback is provided', function() {
+            var throwMe = function() {
+                context.load('Test', 'GET', {}, true);
+            };
+
+            expect(throwMe).toThrow();
+        });
+
+        it('should throw if browser doesn\'t support XMLHttpRequest', function() {
+            var throwMe = function() {
+                window.XMLHttpRequest = null;
+                context.load('Test', 'GET', {}, function() {});
+            };
+
+            expect(throwMe).toThrow();
         });
     });
 });

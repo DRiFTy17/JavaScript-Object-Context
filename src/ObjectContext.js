@@ -516,7 +516,6 @@ function ObjectContext() {
      */
     this.setObjectTypePropertyName = function(propertyName) {
         _objectTypePropertyName = propertyName;
-        console.log(_objectTypePropertyName);
         return this;
     };
 
@@ -530,7 +529,6 @@ function ObjectContext() {
      */
     this.setObjectKeyPropertyName = function(propertyName) {
         _objectKeyPropertyName = propertyName;
-        console.log(_objectKeyPropertyName);
         return this;
     };
 
@@ -915,7 +913,7 @@ function ObjectContext() {
 
                 if (currentObj.current.hasOwnProperty(_objectKeyPropertyName) && currentObj.current[_objectKeyPropertyName] instanceof Array) {
                     keyValuesAry = [];
-                    
+
                     for (var j=0; j<currentObj.current[_objectKeyPropertyName].length; j++) {
                         var propertyName = currentObj.current[_objectKeyPropertyName][j];
                         keyValuesAry.push(currentObj.current[propertyName]);
@@ -1203,13 +1201,30 @@ function ObjectContext() {
     };
 
     /**
+     * Call this to load objects from an external resource directly into the context.
+     * This method only supports loading valid JSON objects, and arrays of valid JSON objects. 
      * 
+     * @public
+     * @param {string} action The name of a service method to call.
+     * @param {string} method The type of request to make (GET/POST).
+     * @param {object} params An object containing query parameters to pass to the service method.
+     * @params {function} onCompleteCallback A callback function to call when the request completes.
      */
-    this.load = function(action, method, params) {
+    this.load = function(action, method, params, onCompleteCallback) {
         var self = this;
 
         if (!window.XMLHttpRequest) {
-            throw new Error('Browser does not support XmlHttpRequest.');
+            throw new Error('Browser does not support XMLHttpRequest.');
+        }
+        else if (!action || typeof action !== 'string' || action.trim().length === 0) {
+            throw new Error('Invalid load action provided: ' + action);
+        }
+        else if (method !== 'GET' && method !== 'POST') {
+            // Should we support PUT and DELETE?
+            throw new Error('Invalid request method provided: ' + method + '. Only GET and POST requests are supported.');
+        }
+        else if (!onCompleteCallback || typeof onCompleteCallback !== 'function') {
+            throw new Error('Invalid callback provided. You must provide a callback function for when the request completes.');
         }
 
         var url = _serviceUri ? _serviceUri + action : action;
@@ -1223,7 +1238,7 @@ function ObjectContext() {
                 var queryStringAry = [];
                 for(var property in params) {
                     if (params.hasOwnProperty(property)) {
-                        queryStringAry.push(encodeURIComponent(property) + "=" + encodeURIComponent(params[property]));
+                        queryStringAry.push(encodeURIComponent(property) + '=' + encodeURIComponent(params[property]));
                     }
                 }
 
@@ -1235,13 +1250,19 @@ function ObjectContext() {
         request.open(method, url, true);
 
         request.setRequestHeader('Accept', 'application/json');
+        request.setRequestHeader('Content-Type', 'application/json');
 
-        if (method === 'POST') {
-            request.setRequestHeader('Content-Type', 'application/json');
-            request.setRequestHeader('Content-Length', postParams.length);
-        }
+        var abort = function() {
+            request.abort();
 
-        var requestTimeout = setTimeout(request.abort, 30000);
+            onCompleteCallback({
+                isSuccessful: false,
+                data: null,
+                errorMessage: 'ObjectContext: Request timed out.'
+            });
+        };
+
+        var requestTimeout = setTimeout(abort, 30000);
 
         request.onreadystatechange = function() {
             if (request.readyState === 4) {
@@ -1252,33 +1273,49 @@ function ObjectContext() {
                         var data = JSON.parse(request.responseText);
 
                         if (!data || typeof data !== 'object') {
-                            console.error('Load Error: ', request.responseText);
+                            onCompleteCallback({
+                                isSuccessful: false,
+                                data: null,
+                                errorMessage: 'Load Error: ' + request.responseText
+                            });
                             return;
                         }
 
                         if (data instanceof Array) {
-                            for (var i = 0; i < data.length; i++) {
+                            for (var i=0; i<data.length; i++) {
                                 var obj = data[i];
-                                self.add(obj);
 
-                                // TODO: Cache the query method used for loading this type of data.
-                                //self._loadMap.push({type: obj.ObjectDataType, action: action});
-                            };    
+                                if (typeof obj === 'object') {
+                                    self.add(obj);
+                                }
+                            }
                         }
                         else {
-                            self.add(data);
-                            // TODO: Cache the query method used for loading this type of data.
-                            //self._loadMap.push({type: obj.ObjectDataType, action: action});
+                            if (typeof data === 'object') {
+                                self.add(data);
+                            }
                         }
-                        
+
+                        onCompleteCallback({
+                            isSuccessful: true,
+                            data: data,
+                            errorMessage: null
+                        });
                     }
                     catch(e) {
-                        console.error('Load Error:', e.message);
-                        console.log('Response: ', request.responseText);
+                        onCompleteCallback({
+                            isSuccessful: false,
+                            data: null,
+                            errorMessage: 'Load Error: ' + e.message
+                        });
                     }
                 }
                 else {
-                    console.log('Load Error: ', request.status, request);
+                    onCompleteCallback({
+                        isSuccessful: false,
+                        data: null,
+                        errorMessage: 'Load Error: ' + request.status
+                    });
                 }
             }
         };
@@ -1286,6 +1323,11 @@ function ObjectContext() {
         request.send(postParams);
     };
 
+    /**
+     * Adds an array of property names to the ingnored property name collection.
+     *
+     * @public
+     */
     this.addIgnoredProperties = function(ary) {
         if (!ary || typeof ary !== 'object' || !(ary instanceof Array) || ary.length === 0) {
             throw new Error('Invalid array of properties to ignore was provided. Must be an array of strings.');
@@ -1303,6 +1345,11 @@ function ObjectContext() {
         return this;
     };
 
+    /**
+     * Adds a property name to the ignored property name collection.
+     *
+     * @public
+     */
     this.addIgnoredProperty = function(propertyName) {
         if (!propertyName || typeof propertyName !== 'string' || propertyName.length === 0) {
             throw new Error('addIgnoredProperty: Invalid property name. Ignored property name must be a string.');

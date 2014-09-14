@@ -35,6 +35,38 @@ function ObjectContext() {
     var _changeListeners = [];
     
     /**
+     * Holds the URI to use during load requests. 
+     *
+     * @private
+     * @type string
+     */
+    var _serviceUri = null;
+
+    /**
+     * This is an array of property names to ignore if they exist on loaded objects.
+     *
+     * @private
+     * @type Array
+     */
+    var _ignoredProperties = [];
+
+    /**
+     * The property name to look for on objects to retrive its data type.
+     *
+     * @private
+     * @type string
+     */
+    var _objectTypePropertyName = null;
+
+    /**
+     * The property name to look for on objects to retrive its key.
+     *
+     * @private
+     * @type Array
+     */
+    var _objectKeyPropertyName = null;
+
+    /**
      * Creates a deepy copy of the passed in object.
      * 
      * Note: The copy is done through the JavaScript JSON object, and doesn't copy
@@ -159,9 +191,9 @@ function ObjectContext() {
              */
             type: type,
             /**
-             * Look at the ExtensionData property to get the keys of the object.
+             * Look at the ObjectKeys property to get the keys of the object.
              */
-            key: obj.ExtensionData && obj.ExtensionData.Key && obj.ExtensionData.Key.length ? obj.ExtensionData.Key : null
+            key: _objectKeyPropertyName && _objectKeyPropertyName.trim().length > 0 && obj.hasOwnProperty(_objectKeyPropertyName) ? obj[_objectKeyPropertyName] : null
         };
     };
     
@@ -179,7 +211,8 @@ function ObjectContext() {
         if (!obj.hasOwnProperty(property) || 
             typeof obj[property] === 'function' ||
             property.toString().substring(0, 1) === '_' || 
-            property.toString().substring(0, 1) === '$') {
+            property.toString().substring(0, 1) === '$' ||
+            _ignoredProperties.indexOf(property) >= 0) {
             return false;
         }
 
@@ -209,16 +242,16 @@ function ObjectContext() {
             if (ary[i] instanceof Array) {
                 _addArray(ary[i], rootParent, isStatusNew);
             }
-            else if (typeof ary[i] === 'object') {
+            else if (ary[i] && typeof ary[i] === 'object') {
                 if (self.doesObjectExist(ary[i])) {
                     continue;
                 }
 
                 _addObject(ary[i], rootParent, ary, isStatusNew);
             }
-            else {
-                throw new Error(_stringFormat('Invalid array item type found ("{0}") at index {1}.', typeof ary[i], i));
-            }
+            // else {
+            //     throw new Error(_stringFormat('Invalid array item type found ("{0}") at index {1}.', typeof ary[i], i));
+            // }
         }
     };
     
@@ -241,7 +274,7 @@ function ObjectContext() {
             if (obj[property] instanceof Array) {
                 _addArray(obj[property], rootParent || obj, isStatusNew);
             }
-            else if (typeof obj[property] === 'object') {
+            else if (obj[property] && typeof obj[property] === 'object') {
                 if (self.doesObjectExist(obj[property])) {
                     continue;
                 }
@@ -263,7 +296,7 @@ function ObjectContext() {
         // Check if this property has already been added to the changeset
         var existingChangeEntry = null;
         for (var i=0; i<obj.changeset.length; i++) {
-            if (obj.changeset[i].propertyName === property.toString()) {
+            if (obj.changeset[i].PropertyName === property.toString()) {
                 existingChangeEntry = obj.changeset[i];
                 break;
             }
@@ -271,9 +304,9 @@ function ObjectContext() {
 
         if (existingChangeEntry !== null) {
             // Check if the original value is different to the new value in the object
-            if (existingChangeEntry.oldValue != obj.current[property]) {
+            if (existingChangeEntry.OldValue != obj.current[property]) {
                 // Update the existing changeset entry current value
-                existingChangeEntry.newValue = obj.current[property];
+                existingChangeEntry.NewValue = obj.current[property];
             }
             else {
                 // Since the object was reset to its original value, we remove it from the changeset
@@ -283,9 +316,9 @@ function ObjectContext() {
         else {
             // Add a new changeset entry
             obj.changeset.push({
-                propertyName: property.toString(),
-                oldValue: obj.original[property],
-                newValue: obj.current[property]
+                PropertyName: property.toString(),
+                OldValue: obj.original[property],
+                NewValue: obj.current[property]
             });
 
             // Update the object status to modified only if it is currently unmodified
@@ -319,15 +352,36 @@ function ObjectContext() {
                 var deletedObjectCount = 0;
 
                 for (var i=0; i<ary.length; i++) {
-                    if (self.getObjectStatus(ary[i]) === ObjectContext.ObjectStatus.Deleted) {
-                        deletedObjectCount++;
+                    if (typeof ary[i] === 'object') {
+                        if (self.getObjectStatus(ary[i]) === ObjectContext.ObjectStatus.Deleted) {
+                            deletedObjectCount++;
+                        }
                     }
                 }
 
-                // Removed (9/5/14) - No longer adding array properties to changeset
-                // if ((obj.current[property].length - deletedObjectCount) !== obj.original[property].length) {
-                //     _setPropertyChanged(obj, property);
-                // }
+                // Check to see if the lengths of the corresponding arrays are different, if so add them to the changeset
+                if ((obj.current[property].length - deletedObjectCount) !== obj.original[property].length) {
+                    _setPropertyChanged(obj, property);
+                }
+                else if (obj.current[property].length === obj.original[property].length) {
+                    // The lengths are the same so check to see if there are any differences in the values of 
+                    // the array (for primitive types only)
+                    for (var i=0; i<obj.current[property].length; i++) {
+                        var currentValue = obj.current[property][i];
+
+                        // We only test primitive types here. Object comparisons would not work unless we checked
+                        // structure and values recursively. Which is doable, will come back to this later.
+                        if (typeof currentValue !== 'object') {
+                            var originalValue = obj.original[property][i];
+
+                            // We are doing a strict-compare here, but maybe this should be double-equals for type coercion?
+                            if (currentValue !== originalValue) {
+                                _setPropertyChanged(obj, property);
+                                break;
+                            }
+                        }
+                    }
+                }
             }
             else if (typeof obj.current[property] !== 'object' && obj.current[property] !== obj.original[property]) {
                 _setPropertyChanged(obj, property);
@@ -424,12 +478,12 @@ function ObjectContext() {
      * @returns {object} A reference of this for method chaining.
      */
     var _addObject = function(obj, rootParent, parent, isStatusNew) {
-        var status = isStatusNew ? ObjectContext.ObjectStatus.New : ObjectContext.ObjectStatus.Unmodified;
-        var type = _getNativeType(obj);
-
         if (!obj || typeof obj !== 'object' || obj instanceof Array) {
             throw new Error('Invalid object specified. The value provided must be of type "object".');
         }
+
+        var status = isStatusNew ? ObjectContext.ObjectStatus.New : ObjectContext.ObjectStatus.Unmodified;
+        var type = (_objectTypePropertyName && _objectTypePropertyName.trim().length > 0 && obj.hasOwnProperty(_objectTypePropertyName)) ? obj[_objectTypePropertyName] : _getNativeType(obj);
 
         if (self.doesObjectExist(obj)) {
             return self;
@@ -439,6 +493,45 @@ function ObjectContext() {
         _addChildren(obj, rootParent, isStatusNew);
 
         return self;
+    };
+
+    /**
+     * Sets the service URI to use when making AJAX load requests.
+     *
+     * @public
+     * @returns {object} A reference to this for method chaiing.
+     */
+    this.setServiceUri = function(serviceUri) {
+        _serviceUri = serviceUri;
+        return this;
+    };
+
+    /**
+     * Sets the property name to look for on objects to retrieve its data type as a string value.
+     *
+     * Note: This is optional and if it is not provided, then the objects native JavaScript data type will be used.
+     *
+     * @public
+     * @returns {object} A reference to this for method chaiing.
+     */
+    this.setObjectTypePropertyName = function(propertyName) {
+        _objectTypePropertyName = propertyName;
+        console.log(_objectTypePropertyName);
+        return this;
+    };
+
+    /**
+     * Sets the property name to look for on objects to retrieve its key as a an array of strings.
+     *
+     * Note: This is optional.
+     *
+     * @public
+     * @returns {object} A reference to this for method chaiing.
+     */
+    this.setObjectKeyPropertyName = function(propertyName) {
+        _objectKeyPropertyName = propertyName;
+        console.log(_objectKeyPropertyName);
+        return this;
     };
 
     /**
@@ -762,6 +855,7 @@ function ObjectContext() {
                     // This object was either New or Modified so set it to an Unmodified state
                     currentObject.changeset = [];
                     currentObject.status = ObjectContext.ObjectStatus.Unmodified;
+                    currentObject.originalStatus = currentObject.status;
                     currentObject.original = _deepCopy(currentObject.current);
                 }
             }
@@ -784,12 +878,7 @@ function ObjectContext() {
             throw new Error('Invalid object provided. You must provided an object.');
         }
 
-        var mappedObject = null;
-        mappedObject = _getMappedObject(obj);
-
-        if (!mappedObject) {
-            throw new Error('Invalid object provided. Changeset could not be found.');
-        }
+        var mappedObject = _getMappedObject(obj);
 
         return mappedObject.changeset;
     };
@@ -816,11 +905,37 @@ function ObjectContext() {
 
             if (currentObj.status === ObjectContext.ObjectStatus.Unmodified) continue;
 
-            changeset[currentObj.status].push({
-                type: currentObj.type,
-                changeset: currentObj.changeset,
-                object: _deepCopy(currentObj.current)
-            });
+            var changesetEntry = {};
+            changesetEntry[_objectTypePropertyName] = currentObj.type;
+            changesetEntry[_objectKeyPropertyName] = currentObj.key;
+
+            // Only add the key values property if the object is not in 'New' state
+            if (currentObj.status == ObjectContext.ObjectStatus.New) {
+                var keyValuesAry = null;
+
+                if (currentObj.current.hasOwnProperty(_objectKeyPropertyName) && currentObj.current[_objectKeyPropertyName] instanceof Array) {
+                    keyValuesAry = [];
+                    
+                    for (var j=0; j<currentObj.current[_objectKeyPropertyName].length; j++) {
+                        var propertyName = currentObj.current[_objectKeyPropertyName][j];
+                        keyValuesAry.push(currentObj.current[propertyName]);
+                    }
+                }
+
+                changesetEntry['ObjectKeyValues'] = keyValuesAry;
+            }
+
+            switch (currentObj.status) {
+                case ObjectContext.ObjectStatus.Modified:
+                    changesetEntry['Changeset'] = currentObj.changeset;
+                    changesetEntry['Object'] = _deepCopy(currentObj.current);
+                    break;
+                case ObjectContext.ObjectStatus.New:
+                    changesetEntry['Object'] = _deepCopy(currentObj.current);
+                    break;
+            }
+
+            changeset[currentObj.status].push(changesetEntry);
         }
 
         return changeset;
@@ -961,26 +1076,34 @@ function ObjectContext() {
      */
     var _resetObject = function(obj) {
         for (var i=0; i<obj.changeset.length; i++) {
-            var property = obj.changeset[i].propertyName;
+            var property = obj.changeset[i].PropertyName;
 
             if (obj.current[property] instanceof Array) {
                 var ary = obj.current[property];
 
                 for (var j=ary.length-1; j>=0; j--) {
-                    var mappedObject = _getMappedObject(ary[j]);
+                    if (typeof ary[j] === 'object') {
+                        var mappedObject = _getMappedObject(ary[j]);
 
-                    switch(mappedObject.status) {
-                        case ObjectContext.ObjectStatus.Unmodified:
-                            continue;
-                            break;
-                        case ObjectContext.ObjectStatus.Modified:
-                        case ObjectContext.ObjectStatus.Deleted:
-                            _resetObject(mappedObject);
-                            break;
-                        case ObjectContext.ObjectStatus.New:
-                            ary.splice(j, 1);
-                            _objectMap.splice(_objectMap.indexOf(mappedObject), 1);
-                            break;
+                        switch(mappedObject.status) {
+                            case ObjectContext.ObjectStatus.Unmodified:
+                                continue;
+                                break;
+                            case ObjectContext.ObjectStatus.Modified:
+                            case ObjectContext.ObjectStatus.Deleted:
+                                _resetObject(mappedObject);
+                                break;
+                            case ObjectContext.ObjectStatus.New:
+                                ary.splice(j, 1);
+                                _objectMap.splice(_objectMap.indexOf(mappedObject), 1);
+                                break;
+                        }
+                    }
+                    else {
+                        // This is a primitive type so reset its value back to its original value
+                        // *** We may run into issues here if there are arrays holding multiple different types,
+                        // *** or if the array lengths are different.
+                        obj.current[property][j] = obj.original[property][j]; 
                     }
                 }
             }
@@ -1080,8 +1203,120 @@ function ObjectContext() {
     };
 
     /**
+     * 
+     */
+    this.load = function(action, method, params) {
+        var self = this;
+
+        if (!window.XMLHttpRequest) {
+            throw new Error('Browser does not support XmlHttpRequest.');
+        }
+
+        var url = _serviceUri ? _serviceUri + action : action;
+
+        var postParams = null;
+        if (params) {
+            if (method === 'POST') {
+                postParams = JSON.stringify(params);
+            }
+            else if (method === 'GET') {
+                var queryStringAry = [];
+                for(var property in params) {
+                    if (params.hasOwnProperty(property)) {
+                        queryStringAry.push(encodeURIComponent(property) + "=" + encodeURIComponent(params[property]));
+                    }
+                }
+
+                url += '?' + queryStringAry.join('&');
+            }
+        }
+
+        var request = new XMLHttpRequest();
+        request.open(method, url, true);
+
+        request.setRequestHeader('Accept', 'application/json');
+
+        if (method === 'POST') {
+            request.setRequestHeader('Content-Type', 'application/json');
+            request.setRequestHeader('Content-Length', postParams.length);
+        }
+
+        var requestTimeout = setTimeout(request.abort, 30000);
+
+        request.onreadystatechange = function() {
+            if (request.readyState === 4) {
+                if (request.status === 200) {
+                    clearTimeout(requestTimeout);
+
+                    try {
+                        var data = JSON.parse(request.responseText);
+
+                        if (!data || typeof data !== 'object') {
+                            console.error('Load Error: ', request.responseText);
+                            return;
+                        }
+
+                        if (data instanceof Array) {
+                            for (var i = 0; i < data.length; i++) {
+                                var obj = data[i];
+                                self.add(obj);
+
+                                // TODO: Cache the query method used for loading this type of data.
+                                //self._loadMap.push({type: obj.ObjectDataType, action: action});
+                            };    
+                        }
+                        else {
+                            self.add(data);
+                            // TODO: Cache the query method used for loading this type of data.
+                            //self._loadMap.push({type: obj.ObjectDataType, action: action});
+                        }
+                        
+                    }
+                    catch(e) {
+                        console.error('Load Error:', e.message);
+                        console.log('Response: ', request.responseText);
+                    }
+                }
+                else {
+                    console.log('Load Error: ', request.status, request);
+                }
+            }
+        };
+
+        request.send(postParams);
+    };
+
+    this.addIgnoredProperties = function(ary) {
+        if (!ary || typeof ary !== 'object' || !(ary instanceof Array) || ary.length === 0) {
+            throw new Error('Invalid array of properties to ignore was provided. Must be an array of strings.');
+        }
+
+        for (var i=0; i<ary.length; i++) {
+            if (typeof ary[i] === 'string') {
+                _ignoredProperties.push(ary[i]);
+            }
+            else {
+                throw new Error('addIgnoredProperties: Invalid property name. Ignored property name must be a string.');
+            }
+        }
+
+        return this;
+    };
+
+    this.addIgnoredProperty = function(propertyName) {
+        if (!propertyName || typeof propertyName !== 'string' || propertyName.length === 0) {
+            throw new Error('addIgnoredProperty: Invalid property name. Ignored property name must be a string.');
+        }
+
+        _ignoredProperties.push(propertyName);
+
+        return this;
+    };
+
+    /**
      * Output the state and all objects in the context to the console.
      */
+     /* istanbul ignore next */
     this.log = function() {
         var date = new Date();
         var timestamp = date.getHours() + ':' + date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds();

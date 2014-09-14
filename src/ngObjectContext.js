@@ -30,6 +30,20 @@ angular.module('ngObjectContext', []).provider('objectContext', function() {
     var _serviceUri = null;
 
     /**
+     * The property name which represents an objects type as string.
+     *
+     * @private
+     */
+    var _objectTypePropertyName = 'ObjectDataType';
+
+    /**
+     * The property name which represents an objects key as an array.
+     *
+     * @private
+     */
+    var _objectKeyPropertyName = 'ObjectKey';
+
+    /**
      * This will hold the one singleton instance of this class if '_isSingleton'
      * is set to true.
      * 
@@ -62,10 +76,33 @@ angular.module('ngObjectContext', []).provider('objectContext', function() {
     };
 
     /**
+     * This tells the context which property to look for on objects that are being added.
+     * If it finds a property with the provided name, then that objects value will be 
+     * used for representing the type of object as string.
+     *
+     * The default value for the property name is 'ObjectDataType'.
+     */
+    this.setObjectTypePropertyName = function(propertyName) {
+        _objectTypePropertyName = propertyName;
+    };
+
+    /**
+     * This tells the context which property to look for on objects that are being added.
+     * If it find a property with the provided name, then that objects value will be
+     * used as its key.
+     *
+     * @public
+     * @param {string} propertyName
+     */
+    this.setObjectKeyPropertyName = function(propertyName) {
+        _objectKeyPropertyName = propertyName;
+    };
+
+    /**
      * The domain context factory function.
      */
-    this.$get = ['$rootScope', '$q', '$http',
-        function($rootScope, $q, $http) {
+    this.$get = ['$rootScope',
+        function($rootScope) {
             /**
              * An array holding registered $digest watchers and the context 
              * instance they are registered to.
@@ -91,7 +128,14 @@ angular.module('ngObjectContext', []).provider('objectContext', function() {
                 if (_isSingleton) {
                     if (!_instance) {
                         _instance = new ObjectContext();
+
+                        _instance.setServiceUri(_serviceUri);
+
+                        _instance.setObjectTypePropertyName(_objectTypePropertyName);
+                        _instance.setObjectKeyPropertyName(_objectKeyPropertyName);
                         
+                        _instance.addIgnoredProperties([_objectTypePropertyName, _objectKeyPropertyName]);
+
                         if (canEvalOnDigest) {
                             digestWatchers.push({
                                 contextInstance: _instance,
@@ -102,7 +146,14 @@ angular.module('ngObjectContext', []).provider('objectContext', function() {
                 }
                 else {
                     var context = new ObjectContext();
-                    
+
+                    context.setServiceUri(_serviceUri);
+
+                    context.setObjectTypePropertyName(_objectTypePropertyName);
+                    context.setObjectKeyPropertyName(_objectKeyPropertyName);
+
+                    context.addIgnoredProperties([_objectTypePropertyName, _objectKeyPropertyName]);
+
                     if (canEvalOnDigest) {
                         digestWatchers.push({
                             contextInstance: context,
@@ -172,49 +223,11 @@ angular.module('ngObjectContext', []).provider('objectContext', function() {
                 }
             };
 
-            /**
-             * 
-             */
-            var _load = function(action, method, params, contextInstance) {
-                if (!_instance && !contextInstance) {
-                    throw new Error('Load error: Context has not been initialized.');
-                }
-
-                var context = contextInstance || _instance;
-                var deferred = $q.defer();
-
-                var config = {
-                    method: method,
-                    url: _serviceUri ? _serviceUri + action : action, 
-                    params: params
-                };
-
-                $http(config).then(
-                    function(data, status, headers, config) {
-                        for (var i=0; i<data.length; i++) {
-                            context.add(data[i]);
-                        }
-
-                        deferred.resolve(data);
-                    }, 
-                    function(data, status, headers, config) {
-                        console.error(data);
-                        console.error(status);
-                        console.error(headers);
-                        console.error(config);
-                        deferred.reject();
-                    }
-                );
-
-                return deferred.promise;
-            };
-
             return {
                 create: _create,
                 getInstance: _getInstance,
                 stopAutoWatch: _stopAutoWatch,
-                startAutoWatch: _startAutoWatch,
-                load: _load
+                startAutoWatch: _startAutoWatch
             };
 
         }

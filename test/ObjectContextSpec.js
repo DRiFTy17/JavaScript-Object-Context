@@ -196,6 +196,15 @@ describe('ObjectContext', function() {
 
             expect(listener).toHaveBeenCalled();
         });
+
+        it('should check for changes on arrays with primitive types', function() {
+            var obj = {test: true, ary: [1, 2, 3]};
+            context.add(obj);
+            obj.ary[0] = 0;
+            context.evaluate();
+
+            expect(context.hasChanges()).toBe(true);
+        });
     });
 
     describe('rejectChanges', function() {
@@ -258,6 +267,45 @@ describe('ObjectContext', function() {
             obj.favoriteColors[0].name = 'Gold';
 
             expect(context.evaluate().rejectChanges().hasChanges()).toEqual(false);
+        });
+
+        it('should reset object to correct status', function() {
+            var obj = new Person(1, 'Tiger Woods', 38);
+            context.add(obj, true);
+            context.acceptChanges();
+            context.rejectChanges(obj);
+
+            expect(context.getObjectStatus(obj)).toBe(ObjectContext.ObjectStatus.Unmodified);
+        });
+
+        it('should reject changes on objects with arrays of objects', function() {
+            var person = new Person(1, 'Tiger Woods', 38);
+            context.add(person);
+            
+            //person.favoriteColors.pop();
+            context.delete(person.favoriteColors[0]);
+            //person.favoriteColors.push({name: 'Salmon'});
+
+            var newColor = {name: 'Bright Pink'};
+            context.add(newColor, true);
+            person.favoriteColors.push(newColor);
+
+            //person.favoriteColors[0].name = 'New Color';
+
+            context.evaluate();
+            context.rejectChanges();
+
+            expect(context.hasChanges()).toEqual(false);
+        });
+
+        it('should reject changes on objects with arrays of primitives', function() {
+            var obj = {test: true, ary: [1,2,3]};
+            context.add(obj);
+            obj.ary[0] = 4;
+            context.evaluate();
+            context.rejectChanges();
+
+            expect(context.hasChanges()).toEqual(false);
         });
     });
 
@@ -713,6 +761,35 @@ describe('ObjectContext', function() {
             context.delete(tiger);
 
             expect(context.getDeletedObjects().length).toBe(4);
+        });
+    });
+
+    describe('getObjectType', function() {
+        it('should throw if invalid object is provided', function() {
+            expect(context.getObjectType).toThrow();
+        });
+
+        it('should throw if object doesn\'t exist in context', function() {
+            var invalid = function() {
+                var obj = {test: true};
+                context.getObjectType(obj);
+            };
+
+            expect(invalid).toThrow();
+        }); 
+
+        it('should return string type', function() {
+            var obj = {test: true};
+            context.add(obj);
+
+            expect(typeof context.getObjectType(obj)).toBe('string');
+        });
+
+        it('should return non-empty string with length greater than zero', function() {
+            var obj = {test: true};
+            context.add(obj);
+
+            expect(context.getObjectType(obj).trim().length).toBeGreaterThan(0);
         });
     });
 });

@@ -6,6 +6,16 @@
     function($scope, objectContext) {
       // Get/create an instance of the object context
       var context = objectContext.getInstance();
+
+      context.load('TestService.php', 'GET', {test: true}, function(result) {
+        if (result.isSuccessful) {
+          console.log(result.data);
+        }
+        else {
+          console.log(result.errorMessage);
+        }
+      });
+
       $scope.context = context;
       // Create a person object and add it to the context
       $scope.person = new Person(1, 'Kieran', 25);

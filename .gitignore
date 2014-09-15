@@ -4,3 +4,4 @@ coverage/
 karma.js
 node_modules/
 dev_steps.txt
+demo/TestService.php

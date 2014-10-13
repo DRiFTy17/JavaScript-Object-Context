@@ -45,7 +45,7 @@ describe('ObjectContext', function() {
             var person = new Person(1, 'Tiger Woods', 38);
             context.add(person, true);
 
-            expect(context.getObjectStatus(person)).toEqual(ObjectContext.ObjectStatus.New);
+            expect(context.getObjectStatus(person)).toEqual(ObjectContext.ObjectStatus.Added);
         });
 
         it('should add object with unmodified status', function() {
@@ -651,7 +651,7 @@ describe('ObjectContext', function() {
 
     describe('getChangeset', function() {
         it('should return empty changeset if context is empty', function() {
-            var changesetLength = context.getChangeset()[ObjectContext.ObjectStatus.New].length + 
+            var changesetLength = context.getChangeset()[ObjectContext.ObjectStatus.Added].length + 
                                   context.getChangeset()[ObjectContext.ObjectStatus.Modified].length + 
                                   context.getChangeset()[ObjectContext.ObjectStatus.Deleted].length;
             expect(changesetLength).toBe(0);
@@ -662,7 +662,7 @@ describe('ObjectContext', function() {
             context.add(person, true);
             context.evaluate();
 
-            expect(context.getChangeset()[ObjectContext.ObjectStatus.New].length).toBeTruthy();
+            expect(context.getChangeset()[ObjectContext.ObjectStatus.Added].length).toBeTruthy();
         });
 
         it('should add to "Modified" changeset array', function() {
@@ -725,19 +725,19 @@ describe('ObjectContext', function() {
         });
     });
 
-    describe('getNewObjects', function() {
+    describe('getAddedObjects', function() {
         it('should find no new objects', function() {
             context.add({test: 'value'});
             context.evaluate();
 
-            expect(context.getNewObjects().length).toBe(0);
+            expect(context.getAddedObjects().length).toBe(0);
         });
 
         it('should find new objects', function() {
             context.add({test: 'value'}, true);
             context.evaluate();
 
-            expect(context.getNewObjects().length).toBe(1);
+            expect(context.getAddedObjects().length).toBe(1);
         });
     });
 

@@ -154,7 +154,7 @@
                             if (canEvalOnDigest) {
                                 digestWatchers.push({
                                     contextInstance: _instance,
-                                    deregisterWatchFn: $rootScope.$watch(function () { _instance.evaluate() })
+                                    deregisterWatchFn: $rootScope.$watch(function () { _instance.evaluate(); })
                                 });
                             }
                         }
@@ -172,7 +172,7 @@
                         if (canEvalOnDigest) {
                             digestWatchers.push({
                                 contextInstance: context,
-                                deregisterWatchFn: $rootScope.$watch(function () { _instance.evaluate() })
+                                deregisterWatchFn: $rootScope.$watch(function () { _instance.evaluate(); })
                             });
                         }
 

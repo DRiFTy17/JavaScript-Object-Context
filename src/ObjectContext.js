@@ -432,7 +432,7 @@
                         }
                     }
                 }
-                else if (typeof obj.current[property] !== 'object' && obj.current[property] !== obj.original[property]) {
+                else if ((obj.current[property] === null || typeof obj.current[property] !== 'object') && obj.current[property] !== obj.original[property]) {
                     _setPropertyChanged(obj, property);
                 }
             }

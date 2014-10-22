@@ -235,6 +235,25 @@
         };
 
         /**
+         * Determines if all of the properties on the given object are untrackable.
+         *
+         * @private
+         */
+        var _isTrackableObject = function (obj) {
+            var propertyCount = Object.keys(obj).length
+            if (propertyCount === 0) return false;
+
+            var invalidPropertyCount = 0;
+            for (var property in obj) {
+                if (!_isTrackableProperty(obj, property)) {
+                    invalidPropertyCount++;
+                }
+            }
+
+            return propertyCount !== invalidPropertyCount;
+        };
+
+        /**
          * Fetches a mapped object by search for an object with a matching identifier as to what is provided.
          */
         var _getMappedObjectByIdentifier = function(identifier) {
@@ -401,7 +420,7 @@
                     var deletedObjectCount = 0;
 
                     for (var i = 0; i < ary.length; i++) {
-                        if (typeof ary[i] === 'object') {
+                        if (typeof ary[i] === 'object' && _isTrackableObject(ary[i])) {
                             if (self.getObjectStatus(ary[i]) === ObjectContext.ObjectStatus.Deleted) {
                                 deletedObjectCount++;
                             }
@@ -534,7 +553,7 @@
             var status = isStatusAdded ? ObjectContext.ObjectStatus.Added : ObjectContext.ObjectStatus.Unmodified;
             var type = (_objectTypePropertyName && _objectTypePropertyName.trim().length > 0 && obj.hasOwnProperty(_objectTypePropertyName)) ? obj[_objectTypePropertyName] : _getNativeType(obj);
 
-            if (self.doesObjectExist(obj)) {
+            if (self.doesObjectExist(obj) || !_isTrackableObject(obj)) {
                 return self;
             }
 

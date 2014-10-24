@@ -123,6 +123,18 @@ describe('ObjectContext', function() {
 
             expect(addInvalidObject).toThrow();
         });
+
+        it('should not add an empty object', function() {
+            var obj = {};
+            context.add(obj);
+            expect(context.doesObjectExist(obj)).toBe(false);
+        });
+
+        it('should not add an object with only untrackable properties', function() {
+            var obj = {$id: true};
+            context.add(obj);
+            expect(context.doesObjectExist(obj)).toBe(false);
+        });
     });
     
     describe('evaluate', function() {
@@ -322,7 +334,7 @@ describe('ObjectContext', function() {
         });
         
         it('should return true if object exists', function() {
-            var obj = {};
+            var obj = {test: true};
             context.add(obj);
             expect(context.doesObjectExist(obj)).toEqual(true);
         });
@@ -381,7 +393,7 @@ describe('ObjectContext', function() {
 
     describe('hasChanges', function() {
         it('should have changes after adding a new obejct', function() {
-            var obj = {};
+            var obj = {test: true};
             context.add(obj, true);
 
             expect(context.hasChanges()).toEqual(true);
@@ -389,7 +401,7 @@ describe('ObjectContext', function() {
         });
 
         it('should not have changes after adding object', function() {
-            var obj = {};
+            var obj = {test: true};
             context.add(obj);
 
             expect(context.hasChanges()).toEqual(false);

@@ -1,6 +1,6 @@
-(function() {
+(function () {
     'use strict';
-    
+
     /**
      * Creates a new instance of an ObjectContext.
      * 
@@ -111,16 +111,19 @@
                    obj.status === ObjectContext.ObjectStatus.Deleted;
         };
 
+        /* jshint ignore:start */
         /**
          * Updates every loaded object with a new internal sequence number identifier.
+         * @private
          */
-        var _updateIdentifiers = function() {
+        var _updateIdentifiers = function () {
             _lastIdentifier = 0;
 
-            for (var i=0; i<_objectMap.length; i++) {
+            for (var i = 0; i < _objectMap.length; i++) {
                 _objectMap.identifier = ++_lastIdentifier;
             }
         };
+        /* jshint ignore:end */
 
         /**
          * A helper function to create a mapped context object.
@@ -130,6 +133,8 @@
          * 
          * @private
          * @param {object} obj An object to wrap.
+         * @param {object} status The status of the object.
+         * @param {object} type The type of the object.
          * @param {object} rootParent The root parent that this object is in the hierarchy of.
          * @param {object} parent The direct parent of this object.
          */
@@ -137,16 +142,19 @@
             return {
                 /**
                  * The current state of the object.
+                 * @private
                  */
                 current: obj,
                 /**
                  * A copy of the object in its unchanged state.
+                 * @private
                  */
                 original: _deepCopy(obj),
                 /**
                  * Returns whether or not the current object has changes from its
                  * original state.
-                 * 
+                 *
+                 * @private
                  * @returns {boolean} True if the object has changes from its original state, false otherwise.
                  */
                 hasChanges: function () {
@@ -159,7 +167,7 @@
                     for (var i = 0; i < _objectMap.length; i++) {
                         var currentObject = _objectMap[i];
 
-                        if (currentObject === this) continue;
+                        if (currentObject === this) { continue; }
 
                         if (currentObject.rootParent === this.current || currentObject.parent === this.current) {
                             if (_doesObjectHaveChanges(currentObject)) {
@@ -173,40 +181,49 @@
                 },
                 /**
                  * An array holding the changes to the current object.
+                 * @private
                  */
                 changeset: [],
                 /**
                  * A reference to the root object that this object is a child of.
                  * If this is the parent, then the value is null.
+                 * @private
                  */
                 rootParent: rootParent,
                 /**
                  * A reference to the direct parent object of this object.
+                 * @private
                  */
                 parent: parent,
                 /**
                  * Identifies if this object has any child objects that are changed.
+                 * @private
                  */
                 hasChildChanges: false,
                 /**
                  * Holds the current status of the object we are tracking
+                 * @private
                  */
                 status: status,
                 /**
                  * Holds the original status of the object we are tracking
+                 * @private
                  */
                 originalStatus: status,
                 /**
                  * The type of the object we are tracking
+                 * @private
                  */
                 type: type,
                 /**
                  * Look at the ObjectKeys property to get the keys of the object.
+                 * @private
                  */
                 key: _objectKeyPropertyName && _objectKeyPropertyName.trim().length > 0 && obj.hasOwnProperty(_objectKeyPropertyName) ? obj[_objectKeyPropertyName] : null,
                 /**
                  * This is the internal unique object identifier. All objects loaded into the 
                  * context will have a unique sequence number assigned to them
+                 * @private
                  */
                 identifier: ++_lastIdentifier
             };
@@ -240,8 +257,8 @@
          * @private
          */
         var _isTrackableObject = function (obj) {
-            var propertyCount = Object.keys(obj).length
-            if (propertyCount === 0) return false;
+            var propertyCount = Object.keys(obj).length;
+            if (propertyCount === 0) { return false; }
 
             var invalidPropertyCount = 0;
             for (var property in obj) {
@@ -256,9 +273,9 @@
         /**
          * Fetches a mapped object by search for an object with a matching identifier as to what is provided.
          */
-        var _getMappedObjectByIdentifier = function(identifier) {
-            for (var i=0; i<_objectMap.length; i++) {
-                if (_objectMap[i].identifier == identifier) {
+        var _getMappedObjectByIdentifier = function (identifier) {
+            for (var i = 0; i < _objectMap.length; i++) {
+                if (_objectMap[i].identifier === identifier) {
                     return _objectMap[i];
                 }
             }
@@ -279,8 +296,7 @@
                     mappedObject.original.hasOwnProperty(property) &&
                     typeof mappedObject.current[property] !== 'object' &&
                     !(mappedObject.current[property] instanceof Array) &&
-                    mappedObject.current[property] !== source[property])
-                {
+                    mappedObject.current[property] !== source[property]) {
                     mappedObject.current[property] = source[property];
                     mappedObject.original[property] = source[property];
                 }
@@ -309,8 +325,7 @@
 
                 if (ary[i] instanceof Array) {
                     _addArray(ary[i], rootParent, isStatusAdded);
-                }
-                else if (ary[i] && typeof ary[i] === 'object') {
+                } else if (ary[i] && typeof ary[i] === 'object') {
                     if (self.doesObjectExist(ary[i])) {
                         continue;
                     }
@@ -335,19 +350,20 @@
             // Check to see if there are any child objects that need to be added to
             // the context. This includes arrays of objects as well.
             for (var property in obj) {
-                if (!_isTrackableProperty(obj, property)) {
-                    continue;
-                }
-
-                if (obj[property] instanceof Array) {
-                    _addArray(obj[property], rootParent || obj, isStatusAdded);
-                }
-                else if (obj[property] && typeof obj[property] === 'object') {
-                    if (self.doesObjectExist(obj[property])) {
+                if (obj.hasOwnProperty(property)) {
+                    if (!_isTrackableProperty(obj, property)) {
                         continue;
                     }
 
-                    _addObject(obj[property], rootParent || obj, obj, isStatusAdded);
+                    if (obj[property] instanceof Array) {
+                        _addArray(obj[property], rootParent || obj, isStatusAdded);
+                    } else if (obj[property] && typeof obj[property] === 'object') {
+                        if (self.doesObjectExist(obj[property])) {
+                            continue;
+                        }
+
+                        _addObject(obj[property], rootParent || obj, obj, isStatusAdded);
+                    }
                 }
             }
         };
@@ -372,16 +388,14 @@
 
             if (existingChangeEntry !== null) {
                 // Check if the original value is different to the new value in the object
-                if (existingChangeEntry.OldValue != obj.current[property]) {
+                if (existingChangeEntry.OldValue != obj.current[property]) { // jshint ignore:line
                     // Update the existing changeset entry current value
                     existingChangeEntry.NewValue = obj.current[property];
-                }
-                else {
+                } else {
                     // Since the object was reset to its original value, we remove it from the changeset
                     obj.changeset.splice(obj.changeset.indexOf(existingChangeEntry), 1);
                 }
-            }
-            else {
+            } else {
                 // Add a new changeset entry
                 obj.changeset.push({
                     PropertyName: property.toString(),
@@ -408,51 +422,52 @@
          */
         var _checkForChanges = function (obj) {
             for (var property in obj.current) {
-                // Skip private/angular/array/object properties
-                if (!_isTrackableProperty(obj.current, property)) {
-                    continue;
-                }
+                if (obj.current.hasOwnProperty(property)) {
 
-                // If this property is an array then check to see if the length has changed.
-                // Otherwise just compare the properties values
-                if (obj.current[property] instanceof Array) {
-                    var ary = obj.current[property];
-                    var deletedObjectCount = 0;
-
-                    for (var i = 0; i < ary.length; i++) {
-                        if (typeof ary[i] === 'object' && _isTrackableObject(ary[i])) {
-                            if (self.getObjectStatus(ary[i]) === ObjectContext.ObjectStatus.Deleted) {
-                                deletedObjectCount++;
-                            }
-                        }
+                    // Skip private/angular/array/object properties
+                    if (!_isTrackableProperty(obj.current, property)) {
+                        continue;
                     }
 
-                    // Check to see if the lengths of the corresponding arrays are different, if so add them to the changeset
-                    if ((obj.current[property].length - deletedObjectCount) !== obj.original[property].length) {
-                        _setPropertyChanged(obj, property);
-                    }
-                    else if (obj.current[property].length === obj.original[property].length) {
-                        // The lengths are the same so check to see if there are any differences in the values of 
-                        // the array (for primitive types only)
-                        for (var i = 0; i < obj.current[property].length; i++) {
-                            var currentValue = obj.current[property][i];
+                    // If this property is an array then check to see if the length has changed.
+                    // Otherwise just compare the properties values
+                    if (obj.current[property] instanceof Array) {
+                        var ary = obj.current[property];
+                        var deletedObjectCount = 0;
 
-                            // We only test primitive types here. Object comparisons would not work unless we checked
-                            // structure and values recursively. Which is doable, will come back to this later.
-                            if (typeof currentValue !== 'object') {
-                                var originalValue = obj.original[property][i];
-
-                                // We are doing a strict-compare here, but maybe this should be double-equals for type coercion?
-                                if (currentValue !== originalValue) {
-                                    _setPropertyChanged(obj, property);
-                                    break;
+                        for (var i = 0; i < ary.length; i++) {
+                            if (typeof ary[i] === 'object' && _isTrackableObject(ary[i])) {
+                                if (self.getObjectStatus(ary[i]) === ObjectContext.ObjectStatus.Deleted) {
+                                    deletedObjectCount++;
                                 }
                             }
                         }
+
+                        // Check to see if the lengths of the corresponding arrays are different, if so add them to the changeset
+                        if ((obj.current[property].length - deletedObjectCount) !== obj.original[property].length) {
+                            _setPropertyChanged(obj, property);
+                        } else if (obj.current[property].length === obj.original[property].length) {
+                            // The lengths are the same so check to see if there are any differences in the values of 
+                            // the array (for primitive types only)
+                            for (var j = 0; j < obj.current[property].length; j++) {
+                                var currentValue = obj.current[property][j];
+
+                                // We only test primitive types here. Object comparisons would not work unless we checked
+                                // structure and values recursively. Which is doable, will come back to this later.
+                                if (typeof currentValue !== 'object') {
+                                    var originalValue = obj.original[property][j];
+
+                                    // We are doing a strict-compare here, but maybe this should be double-equals for type coercion?
+                                    if (currentValue !== originalValue) {
+                                        _setPropertyChanged(obj, property);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } else if ((obj.current[property] === null || typeof obj.current[property] !== 'object') && obj.current[property] !== obj.original[property]) {
+                        _setPropertyChanged(obj, property);
                     }
-                }
-                else if ((obj.current[property] === null || typeof obj.current[property] !== 'object') && obj.current[property] !== obj.original[property]) {
-                    _setPropertyChanged(obj, property);
                 }
             }
         };
@@ -649,7 +664,7 @@
          * @returns {boolean} True if the objects exists already, false otherwise.
          */
         this.doesObjectExist = function (objectReference) {
-            if (!objectReference) return false;
+            if (!objectReference) { return false; }
 
             for (var i = 0; i < _objectMap.length; i++) {
                 if (_objectMap[i].current === objectReference) {
@@ -681,7 +696,7 @@
             return _addObject(obj, null, null, isStatusAdded);
         };
 
-        /** 
+        /**	
          * Deletes an existing object from change tracking and all objects that are a
          * child of the provided object.
          * 
@@ -711,8 +726,7 @@
                 }
 
                 _objectMap.splice(index, 1);
-            }
-            else if (_objectMap[index].status !== ObjectContext.ObjectStatus.Added) {
+            } else if (_objectMap[index].status !== ObjectContext.ObjectStatus.Added) {
                 _objectMap[index].status = ObjectContext.ObjectStatus.Deleted;
             }
 
@@ -727,8 +741,7 @@
                 if (currentObject.rootParent === obj) {
                     if (hardDelete === true) {
                         _objectMap.splice(i, 1);
-                    }
-                    else if (currentObject.status !== ObjectContext.ObjectStatus.Added) {
+                    } else if (currentObject.status !== ObjectContext.ObjectStatus.Added) {
                         currentObject.status = ObjectContext.ObjectStatus.Deleted;
                     }
                 }
@@ -750,8 +763,7 @@
             if (obj) {
                 var mappedObject = _getMappedObject(obj);
                 return mappedObject.hasChanges();
-            }
-            else {
+            } else {
                 for (var i = 0; i < _objectMap.length; i++) {
                     if (_objectMap[i].hasChanges()) {
                         return true;
@@ -890,11 +902,12 @@
          */
         this.acceptChanges = function (saveResultMap) {
             var evalChanges = false;
+            var currentObject = {};
 
             // First we need to determine if there are any objects that are part of an 
             // array need to be removed. If there are, remove them and then reevaluate.
             for (var i = _objectMap.length - 1; i >= 0; i--) {
-                var currentObject = _objectMap[i];
+                currentObject = _objectMap[i];
 
                 if (currentObject.status === ObjectContext.ObjectStatus.Deleted &&
                     currentObject.parent && currentObject.parent instanceof Array) {
@@ -906,18 +919,17 @@
 
             // Due to the loop above, if there was an object removed from an array, we 
             // need to reevaluate all objects for new changes before applying.
-            if (evalChanges) this.evaluate();
+            if (evalChanges) { this.evaluate(); }
 
             // Now go through and remove/set remaining objects
-            for (var i = _objectMap.length - 1; i >= 0; i--) {
-                var currentObject = _objectMap[i];
+            for (i = _objectMap.length - 1; i >= 0; i--) {
+                currentObject = _objectMap[i];
 
                 if (currentObject.status !== ObjectContext.ObjectStatus.Unmodified) {
                     // If this object is marked as deleted, then we remove it from the context
                     if (currentObject.status === ObjectContext.ObjectStatus.Deleted) {
                         _objectMap.splice(i, 1);
-                    }
-                    else {
+                    } else {
                         // This object was either Added or Modified so set it to an Unmodified state
                         currentObject.changeset = [];
                         currentObject.status = ObjectContext.ObjectStatus.Unmodified;
@@ -933,7 +945,7 @@
                 for (var key in saveResultMap) {
                     if (saveResultMap.hasOwnProperty(key) && saveResultMap[key] && typeof saveResultMap[key] === 'object') {
                         var mappedObject = _getMappedObjectByIdentifier(key);
-                        if (!mappedObject) continue;
+                        if (!mappedObject) { continue; }
                         _synchronizeObject(mappedObject, saveResultMap[key]);
                     }
                 }
@@ -981,13 +993,13 @@
             for (var i = 0; i < _objectMap.length; i++) {
                 var currentObj = _objectMap[i];
 
-                if (currentObj.status === ObjectContext.ObjectStatus.Unmodified) continue;
+                if (currentObj.status === ObjectContext.ObjectStatus.Unmodified) { continue; }
 
                 var changesetEntry = {};
 
-                changesetEntry['Changeset'] = currentObj.changeset;
-                changesetEntry['Object'] = _deepCopy(currentObj.current);
-                changesetEntry['ContextIdentifier'] = currentObj.identifier;
+                changesetEntry.Changeset = currentObj.changeset;
+                changesetEntry.Object = _deepCopy(currentObj.current);
+                changesetEntry.ContextIdentifier = currentObj.identifier;
 
                 changeset[currentObj.status].push(changesetEntry);
             }
@@ -1070,40 +1082,39 @@
          * @returns {object} A reference to this for chaining.
          */
         this.rejectChanges = function (obj) {
+            var i = 0;
+            var mappedObject = {};
             if (obj) {
-                var mappedObject = _getMappedObject(obj);
-
+                mappedObject = _getMappedObject(obj);
+                var currentObject = {};
                 // When rejecting changes for an object that is marked as 'Added', we just
                 // remove that object as well as any objects that are a parent or root parent
                 if (mappedObject.status === ObjectContext.ObjectStatus.Added) {
-                    for (var i = _objectMap.length - 1; i >= 0; i--) {
-                        var currentObject = _objectMap[i];
+                    for (i = _objectMap.length - 1; i >= 0; i--) {
+                        currentObject = _objectMap[i];
 
                         if (currentObject === mappedObject ||
                             currentObject.rootParent === mappedObject.current ||
                             currentObject.parent === mappedObject.current) {
                             self.delete(currentObject.current, true);
                         }
-                    };
-                }
-                else {
-                    for (var i = 0; i < _objectMap.length; i++) {
-                        var currentObject = _objectMap[i];
+                    }
+                } else {
+                    for (i = 0; i < _objectMap.length; i++) {
+                        currentObject = _objectMap[i];
 
                         if (!currentObject.rootParent ||
                             currentObject.status === ObjectContext.ObjectStatus.Modified ||
                             currentObject.status === ObjectContext.ObjectStatus.Deleted) {
                             _resetObject(currentObject);
-                        }
-                        else if (currentObject.status === ObjectContext.ObjectStatus.Added) {
+                        } else if (currentObject.status === ObjectContext.ObjectStatus.Added) {
                             self.delete(currentObject.current, true);
                         }
                     }
                 }
-            }
-            else {
-                for (var i = _objectMap.length - 1; i >= 0; i--) {
-                    var mappedObject = _objectMap[i];
+            } else {
+                for (i = _objectMap.length - 1; i >= 0; i--) {
+                    mappedObject = _objectMap[i];
 
                     switch (mappedObject.status) {
                         case ObjectContext.ObjectStatus.Modified:
@@ -1141,7 +1152,6 @@
 
                             switch (mappedObject.status) {
                                 case ObjectContext.ObjectStatus.Unmodified:
-                                    continue;
                                     break;
                                 case ObjectContext.ObjectStatus.Modified:
                                 case ObjectContext.ObjectStatus.Deleted:
@@ -1152,17 +1162,14 @@
                                     _objectMap.splice(_objectMap.indexOf(mappedObject), 1);
                                     break;
                             }
-                        }
-                        else {
+                        } else {
                             // This is a primitive type so reset its value back to its original value
                             // *** We may run into issues here if there are arrays holding multiple different types,
                             // *** or if the array lengths are different.
-                            //obj.current[property][j] = obj.original[property][j];
                             obj.current[property] = _deepCopy(obj.original[property]);
                         }
                     }
-                }
-                else {
+                } else {
                     obj.current[property] = obj.original[property];
                 }
             }
@@ -1220,8 +1227,7 @@
         this.query = function (type, params) {
             if (typeof type !== 'string') {
                 throw new Error('The provided type must be a string.');
-            }
-            else if (params && typeof params !== 'object') {
+            } else if (params && typeof params !== 'object') {
                 throw new Error('The provided query parameters must be an object.');
             }
 
@@ -1265,22 +1271,19 @@
          * @param {string} action The name of a service method to call.
          * @param {string} method The type of request to make (GET/POST).
          * @param {object} params An object containing query parameters to pass to the service method.
-         * @params {function} onCompleteCallback A callback function to call when the request completes.
+         * @param {function} onCompleteCallback A callback function to call when the request completes.
          */
         this.load = function (action, method, params, onCompleteCallback) {
             var self = this;
 
             if (!window.XMLHttpRequest) {
                 throw new Error('Browser does not support XMLHttpRequest.');
-            }
-            else if (!action || typeof action !== 'string' || action.trim().length === 0) {
+            } else if (!action || typeof action !== 'string' || action.trim().length === 0) {
                 throw new Error('Invalid load action provided: ' + action);
-            }
-            else if (method !== 'GET' && method !== 'POST') {
+            } else if (method !== 'GET' && method !== 'POST') {
                 // Should we support PUT and DELETE?
                 throw new Error('Invalid request method provided: ' + method + '. Only GET and POST requests are supported.');
-            }
-            else if (!onCompleteCallback || typeof onCompleteCallback !== 'function') {
+            } else if (!onCompleteCallback || typeof onCompleteCallback !== 'function') {
                 throw new Error('Invalid callback provided. You must provide a callback function for when the request completes.');
             }
 
@@ -1290,8 +1293,7 @@
             if (params) {
                 if (method === 'POST') {
                     postParams = JSON.stringify(params);
-                }
-                else if (method === 'GET') {
+                } else if (method === 'GET') {
                     var queryStringAry = [];
                     for (var property in params) {
                         if (params.hasOwnProperty(property)) {
@@ -1346,8 +1348,7 @@
                                         self.add(obj);
                                     }
                                 }
-                            }
-                            else {
+                            } else {
                                 if (typeof data === 'object') {
                                     self.add(data);
                                 }
@@ -1366,8 +1367,7 @@
                                 errorMessage: 'Load Error: ' + e.message
                             });
                         }
-                    }
-                    else {
+                    } else {
                         onCompleteCallback({
                             isSuccessful: false,
                             data: null,
@@ -1393,8 +1393,7 @@
             for (var i = 0; i < ary.length; i++) {
                 if (typeof ary[i] === 'string') {
                     _ignoredProperties.push(ary[i]);
-                }
-                else {
+                } else {
                     throw new Error('addIgnoredProperties: Invalid property name. Ignored property name must be a string.');
                 }
             }
@@ -1436,8 +1435,7 @@
             for (var i = 0; i < _objectMap.length; i++) {
                 if (!_objectMap[i].rootParent) {
                     parentObjects.push(_objectMap[i]);
-                }
-                else {
+                } else {
                     childObjects.push(_objectMap[i]);
                 }
             }
@@ -1468,12 +1466,29 @@
     }
 
     /**
-     * The available object status for loaded objects.
+     * The state of a loaded context object.
+     * @public
      */
     ObjectContext.ObjectStatus = {
+        /**
+         * The object is new, has been added to the object context, and the acceptChanges method has not been called. After the changes are saved, the object status changes to Unmodified.
+         * @public
+         */
         Added: 'Added',
+        /**
+         * The object has not been modified since it was attached to the context or since the last time that the acceptChanges method was called.
+         * @public
+         */
         Unmodified: 'Unmodified',
+        /**
+         * One of the scalar properties on the object was modified and the acceptChanges method has not been called. After the changes are saved, the object state changes to Unchanged.
+         * @public
+         */
         Modified: 'Modified',
+        /**
+         * The object has been marked as deleted from the object context. After the changes are saved, the object is removed from the context.
+         * @public
+         */
         Deleted: 'Deleted'
     };
 

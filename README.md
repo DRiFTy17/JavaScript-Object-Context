@@ -1,5 +1,5 @@
-Angular Change Tracker
-====================
+JavaScript Object Context (with Angular 1.x integration)
+========================================================
 
 > **Version**: 1.0
 

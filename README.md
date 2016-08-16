@@ -300,6 +300,11 @@ context.hasChanges(person.favoriteSport); // false
 
 ## Development
 
-* Install karma (with the karma-coverage plugin)
-* Install PhantomJS
-* Install Jasmine
+* Install karma (with the karma-coverage plugin):
+    - npm install karma
+    - npm install karma-coverage
+    - npm install karma-jasmine
+    - npm install jasmine-core
+    - (Windows only) npm install -g karma-cli
+    - karma init
+    - karma start

@@ -135,6 +135,18 @@ describe('ObjectContext', function() {
             context.add(obj);
             expect(context.doesObjectExist(obj)).toBe(false);
         });
+
+        it('should ignore child objects of type Date', function() {
+            var date = new Date();
+            var obj = {
+                one: 1,
+                two: date
+            };
+            context.add(obj);
+            context.evaluate();
+
+            expect(context.doesObjectExist(date)).toBe(false);
+        });
     });
     
     describe('evaluate', function() {
@@ -213,6 +225,20 @@ describe('ObjectContext', function() {
             var obj = {test: true, ary: [1, 2, 3]};
             context.add(obj);
             obj.ary[0] = 0;
+            context.evaluate();
+
+            expect(context.hasChanges()).toBe(true);
+        });
+
+        it('should detect changes in Date objects', function() {
+            var date = new Date('2016-08-15T00:00:00.000Z');
+            var obj = {
+                one: 1,
+                two: date
+            };
+
+            context.add(obj);
+            obj.two.setUTCDate(16);
             context.evaluate();
 
             expect(context.hasChanges()).toBe(true);
@@ -325,6 +351,37 @@ describe('ObjectContext', function() {
             context.evaluate();
 
             expect(context.rejectChanges().hasChanges()).toBe(false);
+        });
+
+        it('should reset date properties to the correct time', function() {
+            var date = new Date('2016-08-15T00:00:00.000Z');
+            var obj = {
+                one: 1,
+                two: date
+            };
+
+            context.add(obj);
+            obj.two.setUTCDate(16);
+            context.evaluate();
+            context.rejectChanges();
+
+            expect(obj.two.toISOString()).toBe(new Date('2016-08-15T00:00:00.000Z').toISOString());
+            expect(context.hasChanges()).toBe(false);
+        });
+
+        it('should reset date properties to original value if null', function() {
+            var obj = {
+                one: 1,
+                two: null
+            };
+
+            context.add(obj);
+            obj.two = new Date('2016-08-15T00:00:00.000Z');
+            context.evaluate();
+            context.rejectChanges();
+
+            expect(obj.two).toBe(null);
+            expect(context.hasChanges()).toBe(false);
         });
     });
 

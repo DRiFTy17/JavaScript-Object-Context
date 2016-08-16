@@ -357,7 +357,7 @@
 
                     if (obj[property] instanceof Array) {
                         _addArray(obj[property], rootParent || obj, isStatusAdded);
-                    } else if (obj[property] && typeof obj[property] === 'object') {
+                    } else if (obj[property] && typeof obj[property] === 'object' && !(obj[property] instanceof Date)) {
                         if (self.doesObjectExist(obj[property])) {
                             continue;
                         }
@@ -386,11 +386,14 @@
                 }
             }
 
+            var isDate = obj.current[property] instanceof Date;
+            var newValue = isDate ? obj.current[property].toISOString() : obj.current[property];
+
             if (existingChangeEntry !== null) {
                 // Check if the original value is different to the new value in the object
-                if (existingChangeEntry.OldValue != obj.current[property]) { // jshint ignore:line
+                if (existingChangeEntry.OldValue != newValue) { // jshint ignore:line
                     // Update the existing changeset entry current value
-                    existingChangeEntry.NewValue = obj.current[property];
+                    existingChangeEntry.NewValue = newValue;
                 } else {
                     // Since the object was reset to its original value, we remove it from the changeset
                     obj.changeset.splice(obj.changeset.indexOf(existingChangeEntry), 1);
@@ -400,7 +403,7 @@
                 obj.changeset.push({
                     PropertyName: property.toString(),
                     OldValue: obj.original[property],
-                    NewValue: obj.current[property]
+                    NewValue: newValue
                 });
 
                 // Update the object status to modified only if it is currently unmodified
@@ -465,8 +468,22 @@
                                 }
                             }
                         }
-                    } else if ((obj.current[property] === null || typeof obj.current[property] !== 'object') && obj.current[property] !== obj.original[property]) {
-                        _setPropertyChanged(obj, property);
+                    } else {
+                        var hasDateChanged = false;
+                        if (obj.current[property] instanceof Date) {
+                            // Make sure that the old value can be converted to a date
+                            if (obj.original[property] && typeof obj.original[property] === 'string' && !_isISODateString(obj.original[property])) {
+                                throw new Error('The original value for property \"' + property + '\" is not a valid Date type: ' + obj.original[property]);
+                            }
+
+                            if (obj.current[property].toISOString() !== obj.original[property]) {
+                                hasDateChanged = true;
+                            }
+                        }
+
+                        if (((obj.current[property] === null || typeof obj.current[property] !== 'object') && obj.current[property] !== obj.original[property]) || hasDateChanged) {
+                            _setPropertyChanged(obj, property);
+                        }
                     }
                 }
             }
@@ -587,6 +604,33 @@
         this.setServiceUri = function (serviceUri) {
             _serviceUri = serviceUri;
             return this;
+        };
+
+        /**
+         * Updates the date time
+         * @param {Date} date A Date object to update.
+         * @param {string} isoString An ISO-8601 formatted date string.
+         */
+        var _setDate = function(date, isoString) {
+            if (!_isISODateString(isoString)) {
+                throw new Error('The provided date string \"' + isoString + '\" is in an unsupported format.');
+            }
+
+            var newDate = new Date(isoString);
+            date.setTime(newDate.getTime());
+            return date;
+        };
+
+        /**
+         * Determines if the provided date string is in a proper ISO-8601 date format.
+         * @param  {string} dateString The date string to test.
+         * @return {Boolean} True if the date passes the format validation.
+         */
+        var _isISODateString = function(dateString) {
+            if (typeof dateString !== 'string') {
+                throw new Error('An invalid dateString was provided: ' + dateString);
+            }
+            return /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(([+-]\d\d:\d\d)|Z)?$/i.test(dateString);
         };
 
         /**
@@ -1170,7 +1214,12 @@
                         }
                     }
                 } else {
-                    obj.current[property] = obj.original[property];
+                    var value = obj.original[property];
+                    if (obj.current[property] instanceof Date && obj.original[property] && typeof obj.original[property] === 'string') {
+                        value = new Date(obj.original[property]);
+                    }
+
+                    obj.current[property] = value;
                 }
             }
 

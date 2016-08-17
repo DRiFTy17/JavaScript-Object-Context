@@ -137,9 +137,14 @@
          * @param {object} type The type of the object.
          * @param {object} rootParent The root parent that this object is in the hierarchy of.
          * @param {object} parent The direct parent of this object.
+         * @param {string} propertyName The property name on the parent that holds this object.
          */
-        var _createMappedObject = function (obj, status, type, rootParent, parent) {
-            return {
+        var _createMappedObject = function(obj, status, type, rootParent, parent, propertyName) {
+            // Find all properties on this object that are Date instances and keep
+            // track of them so we can retain their types in the original copy.
+            var dateProperties = _getDateProperties(obj);
+
+            var mappedObject = {
                 /**
                  * The current state of the object.
                  * @private
@@ -196,6 +201,11 @@
                  */
                 parent: parent,
                 /**
+                 * Contains the property name on the parent that holds this object.
+                 * @type {string}
+                 */
+                propertyName: propertyName,
+                /**
                  * Identifies if this object has any child objects that are changed.
                  * @private
                  */
@@ -227,6 +237,17 @@
                  */
                 identifier: ++_lastIdentifier
             };
+
+            // After the mapped object has been created, we need to go through all
+            // properties that we found previously that were Date objects and create
+            // new Date instances using their ISO-8601 string formats from the deep
+            // copy. This will let us know later which types to use when cancelling
+            // or when accepting changes.
+            if (dateProperties.length) {
+                _instantiateDateProperties(dateProperties, mappedObject.original);
+            }
+
+            return mappedObject;
         };
 
         /**
@@ -312,8 +333,9 @@
          * @param {array} ary The array to add to the context.
          * @param {object} rootParent The root parent of this array.
          * @param {boolean} isStatusAdded Whether or not this object should be added with a status of 'Added' or not.
+         * @param {string} propertyName The property name on the parent that holds this array.
          */
-        var _addArray = function (ary, rootParent, isStatusAdded) {
+        var _addArray = function(ary, rootParent, isStatusAdded, propertyName) {
             if (!(ary instanceof Array)) {
                 throw new Error('An array must be specified.');
             }
@@ -324,17 +346,14 @@
                 }
 
                 if (ary[i] instanceof Array) {
-                    _addArray(ary[i], rootParent, isStatusAdded);
+                    _addArray(ary[i], rootParent, isStatusAdded, propertyName);
                 } else if (ary[i] && typeof ary[i] === 'object') {
                     if (self.doesObjectExist(ary[i])) {
                         continue;
                     }
 
-                    _addObject(ary[i], rootParent, ary, isStatusAdded);
+                    _addObject(ary[i], rootParent, ary, isStatusAdded, propertyName);
                 }
-                // else {
-                //     throw new Error(_stringFormat('Invalid array item type found ("{0}") at index {1}.', typeof ary[i], i));
-                // }
             }
         };
 
@@ -356,13 +375,13 @@
                     }
 
                     if (obj[property] instanceof Array) {
-                        _addArray(obj[property], rootParent || obj, isStatusAdded);
+                        _addArray(obj[property], rootParent || obj, isStatusAdded, property);
                     } else if (obj[property] && typeof obj[property] === 'object' && !(obj[property] instanceof Date)) {
                         if (self.doesObjectExist(obj[property])) {
                             continue;
                         }
 
-                        _addObject(obj[property], rootParent || obj, obj, isStatusAdded);
+                        _addObject(obj[property], rootParent || obj, obj, isStatusAdded, property);
                     }
                 }
             }
@@ -470,15 +489,11 @@
                         }
                     } else {
                         var hasDateChanged = false;
-                        if (obj.current[property] instanceof Date) {
-                            // Make sure that the old value can be converted to a date
-                            if (obj.original[property] && typeof obj.original[property] === 'string' && !_isISODateString(obj.original[property])) {
-                                throw new Error('The original value for property \"' + property + '\" is not a valid Date type: ' + obj.original[property]);
-                            }
-
-                            if (obj.current[property].toISOString() !== obj.original[property]) {
-                                hasDateChanged = true;
-                            }
+                        if ((obj.current[property] instanceof Date && !(obj.original[property] instanceof Date)) ||
+                            (!(obj.current[property] instanceof Date) && obj.original[property] instanceof Date) ||
+                            (obj.current[property] instanceof Date && obj.current[property].toISOString() !== obj.original[property].toISOString()))
+                        {
+                            hasDateChanged = true;
                         }
 
                         if (((obj.current[property] === null || typeof obj.current[property] !== 'object') && obj.current[property] !== obj.original[property]) || hasDateChanged) {
@@ -575,9 +590,10 @@
          * @param {object} rootParent The root parent of obj.
          * @param {object} parent The direct parent of obj.
          * @param {boolean} isStatusAdded Whether or not this object should be added with a status of 'Added' or not.
+         * @param {string} propertyName The property name on the parent that holds this object.
          * @returns {object} A reference of this for method chaining.
          */
-        var _addObject = function (obj, rootParent, parent, isStatusAdded) {
+        var _addObject = function(obj, rootParent, parent, isStatusAdded, propertyName) {
             if (!obj || typeof obj !== 'object' || obj instanceof Array) {
                 throw new Error('Invalid object specified. The value provided must be of type "object".');
             }
@@ -589,7 +605,7 @@
                 return self;
             }
 
-            _objectMap.push(_createMappedObject(obj, status, type, rootParent, parent));
+            _objectMap.push(_createMappedObject(obj, status, type, rootParent, parent, propertyName));
             _addChildren(obj, rootParent, isStatusAdded);
 
             return self;
@@ -612,7 +628,7 @@
          * @param {string} isoString An ISO-8601 formatted date string.
          */
         var _setDate = function(date, isoString) {
-            if (!_isISODateString(isoString)) {
+            if (!_isValidDateString(isoString)) {
                 throw new Error('The provided date string \"' + isoString + '\" is in an unsupported format.');
             }
 
@@ -622,15 +638,72 @@
         };
 
         /**
-         * Determines if the provided date string is in a proper ISO-8601 date format.
+         * Determines if the provided date string is in a valid date format.
          * @param  {string} dateString The date string to test.
          * @return {Boolean} True if the date passes the format validation.
          */
-        var _isISODateString = function(dateString) {
+        var _isValidDateString = function(dateString) {
             if (typeof dateString !== 'string') {
                 throw new Error('An invalid dateString was provided: ' + dateString);
             }
-            return /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(([+-]\d\d:\d\d)|Z)?$/i.test(dateString);
+            return Date.parse(dateString);
+        };
+
+        /**
+         * Returns the property names for all properties of type Date.
+         * @param  {object} obj The object to check.
+         * @return {string[]} An array of string property names.
+         */
+        var _getDateProperties = function(obj) {
+            var dateProperties = [];
+            for (var prop in obj) {
+                if (obj.hasOwnProperty(prop) && obj[prop] instanceof Date) {
+                    dateProperties.push(prop);
+                }
+            }
+            return dateProperties;
+        };
+
+        /**
+         * Creates date objects for all properties provided.
+         * @param  {string[]} dateProperties An array of property names.
+         * @param  {object} obj The object to set the dates on.
+         */
+        var _instantiateDateProperties = function(dateProperties, obj) {
+            dateProperties.forEach(function(prop) {
+                if (obj[prop] && typeof obj[prop] === 'string' && _isValidDateString(obj[prop])) {
+                    obj[prop] = new Date(obj[prop]);
+                }
+            });
+        };
+
+        /**
+         * Iterates over the object map and finds all objects that are not referenced
+         * on any other objects anymore and removes their entries from the object map.
+         */
+        var _removeOrphanedChildren = function() {
+            for (var i = _objectMap.length - 1; i >= 0; i--) {
+                if (_objectMap[i].parent && _objectMap[i].propertyName) {
+                    var found = false;
+                    var mappedObject = _objectMap[i];
+                    for (var j = _objectMap.length - 1; j >= 0; j--) {
+                        if (_objectMap[j] !== mappedObject && _objectMap[j].current.hasOwnProperty(mappedObject.propertyName)) {
+                            if (_objectMap[j].current[mappedObject.propertyName] instanceof Array && _objectMap[j].current[mappedObject.propertyName].indexOf(mappedObject.current) >= 0) {
+                                found = true;
+                                break;
+                            }
+                            else if (typeof _objectMap[j].current[mappedObject.propertyName] === 'object' && _objectMap[j].current[mappedObject.propertyName] === mappedObject.current) {
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!found) {
+                        _objectMap.splice(i, 1);
+                    }
+                }
+            }
         };
 
         /**
@@ -682,7 +755,7 @@
                 }
 
                 // First we need to check if there are any new objects to add from 
-                // any arrays within the hierarchy of the currently mapped
+                // any arrays within the hierarchy of the currently mapped object
                 _addChildren(mappedObj.current, mappedObj.rootParent, true);
 
                 _checkForChanges(mappedObj);
@@ -737,7 +810,7 @@
          * @returns {object} A reference of this for method chaining.
          */
         this.add = function (obj, isStatusAdded) {
-            return _addObject(obj, null, null, isStatusAdded);
+            return _addObject(obj, null, null, isStatusAdded, null);
         };
 
         /**	
@@ -750,6 +823,7 @@
          * @returns {object} A reference of this for method chaining.
          */
         this.delete = function (obj, hardDelete) {
+            var i, currentObject;
             var index = _getMapIndex(obj);
 
             if (index === null) {
@@ -764,19 +838,40 @@
 
             // Are we removing the object or just marking it as deleted
             if (hardDelete === true) {
-                if (_objectMap[index].status === ObjectContext.ObjectStatus.Added &&
-                    _objectMap[index].parent && _objectMap[index].parent instanceof Array) {
+                var foundInArray = false;
+                if (_objectMap[index].status === ObjectContext.ObjectStatus.Added && _objectMap[index].parent && _objectMap[index].parent instanceof Array) {
                     _objectMap[index].parent.splice(_objectMap[index].parent.indexOf(_objectMap[index].current), 1);
+                    foundInArray = true;
                 }
 
+                currentObject = _objectMap[index].current;
                 _objectMap.splice(index, 1);
+
+                if (!foundInArray) {
+                    // Go through the object map and find an object that has a child that
+                    // matches that of the object we are deleting. Then reset its value
+                    // back to its original value.
+                    for (i = 0; i < _objectMap.length; i++) {
+                        var done = false;
+                        for (var prop in _objectMap[i].current) {
+                            if (_objectMap[i].current.hasOwnProperty(prop) && _objectMap[i].current[prop] === currentObject) {
+                                _objectMap[i].current[prop] = _deepCopy(_objectMap[i].original[prop]);
+                                done = true;
+                                break;
+                            }
+                        }
+                        if (done) {
+                            break;
+                        }
+                    }
+                }
             } else if (_objectMap[index].status !== ObjectContext.ObjectStatus.Added) {
                 _objectMap[index].status = ObjectContext.ObjectStatus.Deleted;
             }
 
             // Remove all objects that are a child of this object
-            for (var i = _objectMap.length - 1; i >= 0; i--) {
-                var currentObject = _objectMap[i];
+            for (i = _objectMap.length - 1; i >= 0; i--) {
+                currentObject = _objectMap[i];
 
                 if (currentObject.current === obj) {
                     continue;
@@ -788,6 +883,14 @@
                     } else if (currentObject.status !== ObjectContext.ObjectStatus.Added) {
                         currentObject.status = ObjectContext.ObjectStatus.Deleted;
                     }
+                }
+            }
+
+            // Now that the object has been removed and reset, we need to go through the
+            // object map and fix up any parent and children that don't have matching values.
+            for (i = 0; i < _objectMap.length; i++) {
+                if (_objectMap[i].parent && typeof _objectMap[i].parent === 'object' && !(_objectMap[i].parent instanceof Array) && _objectMap[i].propertyName && _objectMap[i].parent[_objectMap[i].propertyName] !== _objectMap[i].current) {
+                    _objectMap[i].parent[_objectMap[i].propertyName] = _objectMap[i].current;
                 }
             }
 
@@ -963,7 +1066,9 @@
 
             // Due to the loop above, if there was an object removed from an array, we 
             // need to reevaluate all objects for new changes before applying.
-            if (evalChanges) { this.evaluate(); }
+            if (evalChanges) {
+              this.evaluate();
+            }
 
             // Now go through and remove/set remaining objects
             for (i = _objectMap.length - 1; i >= 0; i--) {
@@ -978,7 +1083,11 @@
                         currentObject.changeset = [];
                         currentObject.status = ObjectContext.ObjectStatus.Unmodified;
                         currentObject.originalStatus = currentObject.status;
+                        var dateProperties = _getDateProperties(currentObject.current);
                         currentObject.original = _deepCopy(currentObject.current);
+                        if (dateProperties.length) {
+                            _instantiateDateProperties(dateProperties, currentObject.original);
+                        }
                     }
                 }
             }
@@ -996,6 +1105,8 @@
             }
 
             this.evaluate();
+
+            _removeOrphanedChildren();
 
             return this;
         };
@@ -1042,7 +1153,11 @@
                 var changesetEntry = {};
 
                 changesetEntry.Changeset = currentObj.changeset;
+                var dateProperties = _getDateProperties(currentObj.current);
                 changesetEntry.Object = _deepCopy(currentObj.current);
+                if (dateProperties.length) {
+                    _instantiateDateProperties(dateProperties, changesetEntry.Object);
+                }
                 changesetEntry.ContextIdentifier = currentObj.identifier;
 
                 changeset[currentObj.status].push(changesetEntry);
@@ -1064,10 +1179,14 @@
         this.getOriginal = function (objectReference) {
             for (var i = 0; i < _objectMap.length; i++) {
                 if (_objectMap[i].current === objectReference) {
-                    return _deepCopy(_objectMap[i].original);
+                    var dateProperties = _getDateProperties(_objectMap[i].original);
+                    var copy = _deepCopy(_objectMap[i].original);
+                    if (dateProperties.length) {
+                        _instantiateDateProperties(dateProperties, copy);
+                    }
+                    return copy;
                 }
             }
-
             return null;
         };
 
@@ -1136,25 +1255,21 @@
                 if (mappedObject.status === ObjectContext.ObjectStatus.Added) {
                     for (i = _objectMap.length - 1; i >= 0; i--) {
                         currentObject = _objectMap[i];
-
-                        if (currentObject === mappedObject ||
-                            currentObject.rootParent === mappedObject.current ||
-                            currentObject.parent === mappedObject.current) {
+                        if (currentObject === mappedObject || currentObject.rootParent === mappedObject.current || currentObject.parent === mappedObject.current) {
                             self.delete(currentObject.current, true);
                         }
                     }
                 } else {
                     for (i = 0; i < _objectMap.length; i++) {
                         currentObject = _objectMap[i];
-
-                        if (!currentObject.rootParent ||
-                            currentObject.status === ObjectContext.ObjectStatus.Modified ||
-                            currentObject.status === ObjectContext.ObjectStatus.Deleted) {
+                        if (currentObject.current === obj || currentObject.parent === obj || currentObject.rootParent === obj) {
+                            if (currentObject.status === ObjectContext.ObjectStatus.Modified || currentObject.status === ObjectContext.ObjectStatus.Deleted) {
                             _resetObject(currentObject);
                         } else if (currentObject.status === ObjectContext.ObjectStatus.Added) {
                             self.delete(currentObject.current, true);
                         }
                     }
+                }
                 }
             } else {
                 for (i = _objectMap.length - 1; i >= 0; i--) {
@@ -1215,8 +1330,8 @@
                     }
                 } else {
                     var value = obj.original[property];
-                    if (obj.current[property] instanceof Date && obj.original[property] && typeof obj.original[property] === 'string') {
-                        value = new Date(obj.original[property]);
+                    if (obj.original[property] instanceof Date) {
+                        value = new Date(obj.original[property].toISOString());
                     }
 
                     obj.current[property] = value;

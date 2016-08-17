@@ -10,11 +10,11 @@ describe('ObjectContext', function() {
         this.favoriteSport = {name: 'Golf'};
         this.favoriteColors = [{name: 'Red'}, {name: 'Blue'}];
     }
-    
+
     beforeEach(function() {
         context = new ObjectContext();
     });
-    
+
     describe('getObjects', function() {
         it('should return an array', function() {
             expect(context.getObjects() instanceof Array).toBeTruthy();
@@ -39,7 +39,7 @@ describe('ObjectContext', function() {
             context.add(obj);
 
             expect(context.getObjects(true)[0].original).not.toBe(obj);
-        });        
+        });
 
         it('should add object with new status', function() {
             var person = new Person(1, 'Tiger Woods', 38);
@@ -99,20 +99,20 @@ describe('ObjectContext', function() {
         });
 
         it('should throw if invalid object is added', function() {
-            var addInvalidObject = function() { 
-                context.add(null); 
+            var addInvalidObject = function() {
+                context.add(null);
             };
 
             expect(addInvalidObject).toThrow();
         });
-        
+
         it('should not throw if same object added twice', function() {
             var addSameObjectTwice = function() {
                 var obj = new Person(1, 'Tiger Woods', 38);
                 context.add(obj);
                 context.add(obj);
             };
-            
+
             expect(addSameObjectTwice).not.toThrow();
         });
 
@@ -148,7 +148,7 @@ describe('ObjectContext', function() {
             expect(context.doesObjectExist(date)).toBe(false);
         });
     });
-    
+
     describe('evaluate', function() {
         it('should have no changes if no objects exists', function() {
             expect(context.evaluate().hasChanges()).toEqual(false);
@@ -159,7 +159,7 @@ describe('ObjectContext', function() {
             context.add(obj);
             obj.name = 'new name';
             context.evaluate();
-            
+
             expect(context.hasChanges()).toEqual(true);
             expect(context.getObjectChangeset(obj).length).toEqual(1);
         });
@@ -319,7 +319,7 @@ describe('ObjectContext', function() {
         it('should reject changes on objects with arrays of objects', function() {
             var person = new Person(1, 'Tiger Woods', 38);
             context.add(person);
-            
+
             context.delete(person.favoriteColors[0]);
 
             var newColor = {name: 'Bright Pink'};
@@ -383,19 +383,118 @@ describe('ObjectContext', function() {
             expect(obj.two).toBe(null);
             expect(context.hasChanges()).toBe(false);
         });
+
+        it('should reset date properties to dates after set to null', function() {
+            var obj = {
+                one: 1,
+                two: new Date('2016-08-15T00:00:00.000Z')
+            };
+
+            context.add(obj);
+            obj.two = null;
+            context.evaluate();
+            context.rejectChanges();
+
+            expect(obj.two.toISOString()).toBe(new Date('2016-08-15T00:00:00.000Z').toISOString());
+            expect(context.hasChanges()).toBe(false);
+        });
+
+        it('should reset date properties to original values correctly', function() {
+            var obj = {
+                one: 1,
+                two: 'some string value',
+                three: null,
+                four: '2016-08-15T00:00:00.000Z',
+                five: new Date('2016-08-15T00:00:00.000Z'),
+                six: new Date('2016-08-15T00:00:00.000Z')
+            };
+
+            context.add(obj);
+            obj.two = new Date('2016-08-15T00:00:00.000Z');
+            obj.three = new Date('2016-08-15T00:00:00.000Z');
+            obj.four = new Date('2016-08-15T00:00:00.000Z');
+            obj.five = '2016-08-15T00:00:00.000Z';
+            obj.six = '2016-08-16T00:00:00.000Z';
+            context.evaluate();
+            context.rejectChanges();
+
+            expect(obj.two).toBe('some string value');
+            expect(obj.three).toBe(null);
+            expect(obj.four).toBe('2016-08-15T00:00:00.000Z');
+            expect(obj.five.toISOString()).toBe(new Date('2016-08-15T00:00:00.000Z').toISOString());
+            expect(obj.six.toISOString()).toBe(new Date('2016-08-15T00:00:00.000Z').toISOString());
+            expect(context.hasChanges()).toBe(false);
+        });
+
+        it('should reset new child objects to null', function() {
+            var obj = {
+                one: 1,
+                two: null
+            };
+
+            context.add(obj);
+            var newObj = {one: 'one', two: 'two'};
+            obj.two = newObj;
+            context.add(newObj, true);
+            context.evaluate();
+            context.rejectChanges();
+
+            expect(obj.two).toBe(null);
+            expect(context.hasChanges()).toBe(false);
+        });
+
+        it('should reset new child objects to old values', function() {
+            var test = {three: 'one', four: 'two'};
+            var obj = {
+                one: 1,
+                two: test,
+                three: null
+            };
+
+            context.add(obj);
+            var newObj = {one: 'one', two: 'two'};
+            obj.two = newObj;
+            var otherNewObj = {five: 'five', six: 'six'};
+            obj.three = otherNewObj;
+            context.add(newObj, true);
+            context.evaluate();
+            context.rejectChanges();
+
+            expect(obj.two).toBe(test);
+            expect(obj.three).toBe(null);
+            expect(context.hasChanges()).toBe(false);
+        });
+
+        it('should only reject changes on single object when passed', function() {
+            var tiger = new Person(1, 'Tiger Woods', 39);
+            var jordan = new Person(1, 'Jordan Spieth', 22);
+
+            context.add(tiger);
+            context.add(jordan);
+
+            context.delete(tiger);
+            jordan.age = 23;
+
+            context.evaluate();
+            context.rejectChanges(tiger);
+
+            expect(context.hasChanges(tiger)).toBe(false);
+            expect(context.hasChanges(jordan)).toBe(true);
+            expect(context.hasChanges()).toBe(true);
+        });
     });
 
     describe('doesObjectExist', function() {
         it('should return false if invalid object', function() {
             expect(context.doesObjectExist(null)).toEqual(false);
         });
-        
+
         it('should return true if object exists', function() {
             var obj = {test: true};
             context.add(obj);
             expect(context.doesObjectExist(obj)).toEqual(true);
         });
-        
+
         it('should return false if object doesn\'t exist', function() {
             var obj = {};
             context.add(obj);
@@ -445,6 +544,22 @@ describe('ObjectContext', function() {
             };
 
             expect(deleteUntrackedObject).toThrow();
+        });
+
+        it('should only delete objects ', function() {
+            var obj = new Person(1, 'Tiger Woods', 38);
+            var obj2 = new Person(2, 'Jordan Spieth', 22);
+            context.add(obj, true);
+            context.add(obj2);
+            obj.favoriteSport = {name: 'Disc Golf'};
+            var newSport = {name: 'Football'};
+            obj2.favoriteSport = newSport;
+            context.evaluate();
+            context.delete(obj, true);
+
+            expect(context.doesObjectExist(obj)).toBe(false);
+            expect(obj2.favoriteSport).toBe(newSport);
+            expect(context.hasChanges()).toBe(true);
         });
     });
 
@@ -575,6 +690,20 @@ describe('ObjectContext', function() {
 
             expect(context.acceptChanges().hasChanges()).toEqual(false);
         });
+
+        it('should not exist in context if not child of another object', function() {
+            var obj = new Person(1, 'Tiger Woods', 38);
+            context.add(obj);
+            var oldSport = obj.favoriteSport;
+            var newSport = {name: 'Disc Golf'};
+            obj.favoriteSport = newSport;
+            context.evaluate();
+            context.acceptChanges(obj);
+
+            expect(context.doesObjectExist(oldSport)).toBe(false);
+            expect(context.doesObjectExist(newSport)).toBe(true);
+            expect(context.hasChanges()).toEqual(false);
+        });
     });
 
     describe('subscribeChangeListener', function() {
@@ -688,12 +817,12 @@ describe('ObjectContext', function() {
 
         it('should find object in context with correct type and parameters', function() {
             context.add(new Person(1, 'Tiger Woods', 38));
-            expect(context.query('Person', {name: 'Tiger Woods'}).length).toBe(1); 
+            expect(context.query('Person', {name: 'Tiger Woods'}).length).toBe(1);
         });
 
         it('should find object in context with correct type and multiple parameters', function() {
             context.add(new Person(1, 'Tiger Woods', 38));
-            expect(context.query('Person', {name: 'Tiger Woods', age: 38}).length).toBe(1); 
+            expect(context.query('Person', {name: 'Tiger Woods', age: 38}).length).toBe(1);
         });
 
         it('should not find object in context with incorrect type', function() {
@@ -703,12 +832,12 @@ describe('ObjectContext', function() {
 
         it('should not find object in context with incorrect property', function() {
             context.add(new Person(1, 'Tiger Woods', 38));
-            expect(context.query('Person', {invalidProperty: 'Tiger Woods'}).length).toBe(0); 
+            expect(context.query('Person', {invalidProperty: 'Tiger Woods'}).length).toBe(0);
         });
 
         it('should not find object in context with invalid property value', function() {
             context.add(new Person(1, 'Tiger Woods', 38));
-            expect(context.query('Person', {name: 'Wrong Name'}).length).toBe(0); 
+            expect(context.query('Person', {name: 'Wrong Name'}).length).toBe(0);
         });
     });
 
@@ -720,8 +849,8 @@ describe('ObjectContext', function() {
 
     describe('getChangeset', function() {
         it('should return empty changeset if context is empty', function() {
-            var changesetLength = context.getChangeset()[ObjectContext.ObjectStatus.Added].length + 
-                                  context.getChangeset()[ObjectContext.ObjectStatus.Modified].length + 
+            var changesetLength = context.getChangeset()[ObjectContext.ObjectStatus.Added].length +
+                                  context.getChangeset()[ObjectContext.ObjectStatus.Modified].length +
                                   context.getChangeset()[ObjectContext.ObjectStatus.Deleted].length;
             expect(changesetLength).toBe(0);
         });
@@ -852,7 +981,7 @@ describe('ObjectContext', function() {
             };
 
             expect(invalid).toThrow();
-        }); 
+        });
 
         it('should return string type', function() {
             var obj = {test: true};

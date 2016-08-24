@@ -877,7 +877,7 @@
                     continue;
                 }
 
-                if (currentObject.rootParent === obj) {
+                if (currentObject.rootParent === obj || currentObject.parent === obj) {
                     if (hardDelete === true) {
                         _objectMap.splice(i, 1);
                     } else if (currentObject.status !== ObjectContext.ObjectStatus.Added) {
@@ -1281,6 +1281,9 @@
                             _resetObject(mappedObject);
                             break;
                         case ObjectContext.ObjectStatus.Added:
+                            if (mappedObject.parent && !(mappedObject.parent instanceof Array) && self.doesObjectExist(mappedObject.parent) && _getMappedObject(mappedObject.parent).status === ObjectContext.ObjectStatus.Added) {
+                                continue;
+                            }
                             self.delete(mappedObject.current, true);
                             break;
                     }

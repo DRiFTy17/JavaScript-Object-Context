@@ -482,6 +482,49 @@ describe('ObjectContext', function() {
             expect(context.hasChanges(jordan)).toBe(true);
             expect(context.hasChanges()).toBe(true);
         });
+
+        it('should reject changes on child objects correctly', function() {
+          var originalInvoiceAddress = {
+          	Id: 2,
+          	Address: {
+          		Id: 3,
+          		Address: 'Some address'
+          	},
+          	Contact: {
+          		Id: 4,
+          		Address: 'Some contact address'
+          	}
+          };
+
+          var obj = {
+          	Id: 1,
+          	InvoiceAddress: originalInvoiceAddress
+          };
+
+          context.add(obj);
+
+          var newInvoiceAddress = {
+          	Id: 0,
+          	Address: {
+          		Id: 0,
+          		Address: 'Some new address'
+          	},
+          	Contact: {
+          		Id: 4,
+          		Address: 'Some new contact address'
+          	}
+          };
+
+          obj.InvoiceAddress = newInvoiceAddress;
+
+          context.evaluate();
+          context.rejectChanges();
+
+          expect(obj.InvoiceAddress).toBe(originalInvoiceAddress);
+          expect(obj.InvoiceAddress.Address).toBe(originalInvoiceAddress.Address);
+          expect(obj.InvoiceAddress.Contact).toBe(originalInvoiceAddress.Contact);
+          expect(context.hasChanges()).toBe(false);
+        });
     });
 
     describe('doesObjectExist', function() {
